@@ -56,9 +56,11 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
   const [zoneId, setZoneId] = useState("treadmill_zone_1");
   const [status, setStatus] = useState("Камера выключена");
 
-  const stopCamera = () => {
+  const stopCamera = (resetStatus = true) => {
     setEnabled(false);
-    setStatus("Камера выключена");
+    if (resetStatus) {
+      setStatus("Камера выключена");
+    }
 
     if (rafRef.current !== null) {
       window.cancelAnimationFrame(rafRef.current);
@@ -75,6 +77,25 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+  };
+
+  const waitVideoReady = (video: HTMLVideoElement): Promise<void> => {
+    if (video.readyState >= 2) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        reject(new Error("Камера не успела подготовить видеопоток"));
+      }, 5000);
+
+      const onReady = () => {
+        window.clearTimeout(timeout);
+        video.removeEventListener("loadeddata", onReady);
+        resolve();
+      };
+
+      video.addEventListener("loadeddata", onReady);
+    });
   };
 
   const onResults = async (results: Results) => {
@@ -136,14 +157,27 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
   };
 
   const startCamera = async () => {
+    if (enabled) {
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setStatus("Запрашиваю доступ к камере...");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
       streamRef.current = stream;
       if (!videoRef.current) {
-        return;
+        throw new Error("Видеоэлемент не найден");
       }
       videoRef.current.srcObject = stream;
-      await videoRef.current.play();
+      await waitVideoReady(videoRef.current);
+      try {
+        await videoRef.current.play();
+      } catch {
+        // Для некоторых браузеров play может вернуть reject,
+        // но поток при этом уже доступен и кадры читаются.
+      }
 
       const pose = new Pose({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
@@ -164,9 +198,10 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
       rafRef.current = window.requestAnimationFrame(() => {
         void processFrame();
       });
-    } catch {
-      setStatus("Не удалось получить доступ к камере");
-      stopCamera();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Неизвестная ошибка камеры";
+      setStatus(`Ошибка камеры: ${message}`);
+      stopCamera(false);
     }
   };
 
@@ -187,12 +222,12 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
         <button onClick={startCamera} disabled={enabled}>
           Включить камеру
         </button>
-        <button onClick={stopCamera} disabled={!enabled}>
+        <button onClick={() => stopCamera()} disabled={!enabled}>
           Выключить камеру
         </button>
       </div>
       <p>{status}</p>
-      <video ref={videoRef} className="camera-preview" playsInline muted />
+      <video ref={videoRef} className="camera-preview" playsInline muted autoPlay />
     </section>
   );
 }

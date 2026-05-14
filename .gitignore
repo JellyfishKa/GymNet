@@ -6,3 +6,8 @@
 *.pyc
 .venv
 /ml/notebooks/.ipynb_checkpoints
+/ml/data/synthetic/*.jsonl
+/ml/data/synthetic/metadata.json
+/ml/data/real/camera_real_test.jsonl
+/ml/experiments/*.pt
+/ml/experiments/*_report.json

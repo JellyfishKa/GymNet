@@ -48,10 +48,23 @@ services:
     ports:
       - "8080:80"
 
+  ml-pipeline:
+    build:
+      context: ../ml
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements.pipeline.txt
+    restart: "no"
+    volumes:
+      - ../ml:/workspace
+    command: ["python", "run_pipeline.py"]
+
   ml-notebook:
     build:
       context: ../ml
       dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements.notebook.txt
     profiles: ["ml"]
     restart: unless-stopped
     volumes:
@@ -63,19 +76,47 @@ services:
     build:
       context: ../ml
       dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements.pipeline.txt
     profiles: ["ml"]
     volumes:
       - ../ml:/workspace
     command: ["python", "train.py"]
 
+  ml-generate:
+    build:
+      context: ../ml
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements.pipeline.txt
+    profiles: ["ml"]
+    volumes:
+      - ../ml:/workspace
+    command: ["python", "generate_synthetic_dataset.py"]
+
   ml-eval:
     build:
       context: ../ml
       dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements.pipeline.txt
     profiles: ["ml"]
     volumes:
       - ../ml:/workspace
     command: ["python", "evaluate.py"]
+
+  ml-pipeline-gpu:
+    build:
+      context: ../ml
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements.gpu.txt
+    profiles: ["ml-gpu"]
+    gpus: all
+    restart: "no"
+    volumes:
+      - ../ml:/workspace
+    command: ["python", "run_pipeline.py"]
 
 volumes:
   postgres_data:

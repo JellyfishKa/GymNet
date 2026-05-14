@@ -10,9 +10,22 @@
 - В интерфейсе есть кнопки `Включить камеру` / `Выключить камеру` для live-потока с браузерной камеры.
 - ML: notebook-first пайплайн в `ml/notebooks`.
 - Infra: запуск в контейнерах `postgres + backend + frontend` через Docker Compose.
+- ML-конвейер автоматически выполняется контейнером `ml-pipeline` при обычном `docker compose up`.
+- Для ноутбуков с NVIDIA (например, RTX 3060) доступен GPU-конвейер `ml-pipeline-gpu`.
 - Персист завершенных сессий в БД (`zone_sessions`).
 
 ## Быстрый старт (Docker)
+
+Самый быстрый вариант одной командой:
+
+- `powershell -ExecutionPolicy Bypass -File scripts/start_stack.ps1`
+- без пересборки контейнеров: `powershell -ExecutionPolicy Bypass -File scripts/start_stack.ps1 -NoBuild`
+- без запуска ML-конвейера: `powershell -ExecutionPolicy Bypass -File scripts/start_stack.ps1 -NoML`
+
+Скрипт автоматически:
+- поднимает `postgres + backend + frontend`,
+- проверяет доступность NVIDIA runtime,
+- запускает `ml-pipeline-gpu` при наличии GPU, иначе `ml-pipeline`.
 
 1. Собрать и запустить контейнеры:
    - `docker compose -f infra/docker-compose.yml up --build -d`
@@ -20,7 +33,11 @@
    - `http://localhost:8080`
 3. Проверить API:
    - `http://localhost:8000/api/health`
-4. Остановить окружение:
+4. Проверить статус ML-конвейера:
+   - `docker compose -f infra/docker-compose.yml logs ml-pipeline`
+5. (Опционально) Запустить GPU-конвейер ML:
+   - `docker compose -f infra/docker-compose.yml --profile ml-gpu up --build ml-pipeline-gpu`
+6. Остановить окружение:
    - `docker compose -f infra/docker-compose.yml down`
 
 ## Локальный запуск без Docker
@@ -41,14 +58,43 @@
 
 ## ML в Docker
 
-Для запуска контейнеров обучения используйте профиль `ml`:
+По умолчанию ML-конвейер `generate -> train -> eval` запускается автоматически сервисом `ml-pipeline`.
+Если хотите использовать GPU (RTX 3060), запускайте `ml-pipeline-gpu`.
 
+Для ручных сценариев и ноутбука используйте профиль `ml`:
+
+- Сгенерировать синтетический датасет:
+  - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-generate`
 - Поднять ноутбук Jupyter:
   - `docker compose -f infra/docker-compose.yml --profile ml up --build -d ml-notebook`
 - Запустить быструю тренировку в контейнере:
   - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-train`
 - Запустить быструю оценку:
   - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-eval`
+- Повторно запустить полный конвейер одной командой:
+  - `docker compose -f infra/docker-compose.yml run --rm ml-pipeline`
+- Запустить полный конвейер на GPU:
+  - `docker compose -f infra/docker-compose.yml --profile ml-gpu run --rm ml-pipeline-gpu`
+
+## Датасеты и даты экспериментов
+
+- Синтетический train/test датасет хранится в `ml/data/synthetic/`.
+- Реальный тестовый датасет с камеры хранится в `ml/data/real/camera_real_test.jsonl`.
+- Сбор реальных данных:
+  - `python scripts/collect_camera_dataset.py`
+- Дата обучения на синтетике записывается в:
+  - `ml/experiments/train_report.json` (`trained_at`)
+- Дата тестирования (синтетика + реальные данные) записывается в:
+  - `ml/experiments/eval_report.json` (`evaluated_at`)
+
+## Диагностика камеры
+
+- Проверить работу камеры через OpenCV:
+  - `python scripts/check_opencv_camera.py`
+- Если в интерфейсе камера включается и сразу отключается:
+  - проверьте разрешение камеры для браузера,
+  - закройте приложения, которые могут удерживать камеру,
+  - повторно проверьте OpenCV-диагностику командой выше.
 
 ## ML ноутбуки
 

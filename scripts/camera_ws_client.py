@@ -28,6 +28,24 @@ ZONE_ID = "treadmill_zone_1"
 ROI = {"x_min": 0.25, "y_min": 0.2, "x_max": 0.75, "y_max": 0.95}
 
 
+def open_camera() -> cv2.VideoCapture:
+    # На Windows разные backend'ы камеры могут вести себя по-разному.
+    # Пробуем несколько вариантов, чтобы снизить риск "камера не открылась".
+    candidates: list[tuple[int, int]] = []
+    if hasattr(cv2, "CAP_DSHOW"):
+        candidates.extend([(0, cv2.CAP_DSHOW), (1, cv2.CAP_DSHOW)])
+    if hasattr(cv2, "CAP_MSMF"):
+        candidates.extend([(0, cv2.CAP_MSMF), (1, cv2.CAP_MSMF)])
+    candidates.extend([(0, cv2.CAP_ANY), (1, cv2.CAP_ANY)])
+
+    for idx, backend in candidates:
+        cap = cv2.VideoCapture(idx, backend)
+        if cap.isOpened():
+            return cap
+        cap.release()
+    raise RuntimeError("Не удалось открыть камеру через OpenCV (индексы 0/1)")
+
+
 def iter_landmarks(cap: cv2.VideoCapture):
     if mp is None:
         raise RuntimeError("Пакет mediapipe не установлен")
@@ -55,9 +73,7 @@ def iter_landmarks(cap: cv2.VideoCapture):
 
 
 def run() -> None:
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        raise RuntimeError("Не удалось открыть камеру")
+    cap = open_camera()
 
     with websockets.sync.client.connect(BACKEND_WS) as ws:
         for landmarks in iter_landmarks(cap):

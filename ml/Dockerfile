@@ -5,8 +5,12 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /workspace
 
+ARG REQUIREMENTS_FILE=requirements.pipeline.txt
+
 COPY requirements.txt /workspace/requirements.txt
-RUN pip install --no-cache-dir -r /workspace/requirements.txt
+COPY requirements.pipeline.txt /workspace/requirements.pipeline.txt
+COPY requirements.notebook.txt /workspace/requirements.notebook.txt
+RUN pip install --no-cache-dir -r /workspace/${REQUIREMENTS_FILE}
 
 COPY . /workspace
 
