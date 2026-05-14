@@ -40,3 +40,15 @@ label {
 button {
   cursor: pointer;
 }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #334155;
+}

@@ -49,10 +49,10 @@ class CnnResBiGRU(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: [batch, time, features]
-        x = x.transpose(1, 2)  # -> [batch, features, time]
-        x = self.conv(x)  # -> [batch, channels, time']
-        x = x.transpose(1, 2)  # -> [batch, time', channels]
+        # Формат входа: [batch, время, признаки]
+        x = x.transpose(1, 2)  # -> [batch, признаки, время]
+        x = self.conv(x)  # -> [batch, каналы, время']
+        x = x.transpose(1, 2)  # -> [batch, время', каналы]
         x = self.res_bigru(x)
         x = x[:, -1, :]
         return self.head(x)

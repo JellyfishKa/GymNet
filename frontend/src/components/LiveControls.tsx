@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { LiveUpdatePayload } from "../services/wsClient";
+import { exerciseLabel, phaseLabel } from "../utils/labels";
 
 type LiveControlsProps = {
   onSend: (payload: LiveUpdatePayload) => void;
@@ -28,33 +29,37 @@ export default function LiveControls({ onSend }: LiveControlsProps) {
 
   return (
     <section className="card">
-      <h2>Live Controls</h2>
+      <h2>Управление потоком</h2>
       <label>
-        Zone ID
+        Идентификатор зоны
         <input value={zoneId} onChange={(event) => setZoneId(event.target.value)} />
       </label>
       <label>
-        Presence
+        Присутствие в зоне
         <input type="checkbox" checked={isPresent} onChange={(event) => setIsPresent(event.target.checked)} />
       </label>
       <label>
-        Exercise
+        Упражнение
         <select value={exercise} onChange={(event) => setExercise(event.target.value as (typeof EXERCISES)[number])}>
           {EXERCISES.map((item) => (
-            <option key={item}>{item}</option>
+            <option key={item} value={item}>
+              {exerciseLabel(item)}
+            </option>
           ))}
         </select>
       </label>
       <label>
-        SADLA phase
+        Фаза SADLA
         <select value={phase} onChange={(event) => setPhase(event.target.value as (typeof PHASES)[number])}>
           {PHASES.map((item) => (
-            <option key={item}>{item}</option>
+            <option key={item} value={item}>
+              {phaseLabel(item)}
+            </option>
           ))}
         </select>
       </label>
       <label>
-        Form penalty
+        Штраф за технику
         <input
           type="number"
           min={0}

@@ -1,3 +1,5 @@
+import { exerciseLabel, phaseLabel, statusLabel } from "../utils/labels";
+
 type ZoneCardProps = {
   zoneId: string;
   status: string;
@@ -12,12 +14,12 @@ export default function ZoneCard(props: ZoneCardProps) {
   return (
     <section className="card">
       <h2>Зона: {props.zoneId}</h2>
-      <p>Статус: {props.status}</p>
-      <p>Упражнение: {props.exercise ?? "—"}</p>
-      <p>Dwell Time: {props.dwellSeconds} сек</p>
+      <p>Статус: {statusLabel(props.status)}</p>
+      <p>Упражнение: {exerciseLabel(props.exercise)}</p>
+      <p>Время в зоне: {props.dwellSeconds} сек</p>
       <p>Повторения: {props.reps}</p>
-      <p>Form Score: {props.formScore}</p>
-      <p>SADLA фаза: {props.phase}</p>
+      <p>Оценка техники: {props.formScore}</p>
+      <p>Фаза SADLA: {phaseLabel(props.phase)}</p>
     </section>
   );
 }

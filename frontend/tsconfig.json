@@ -9,6 +9,7 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "jsx": "react-jsx",
+    "noEmit": true,
     "types": ["vite/client"]
   },
   "include": ["src"]

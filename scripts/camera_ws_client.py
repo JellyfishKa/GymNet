@@ -1,8 +1,8 @@
 """
-Simple webcam client:
-- captures landmarks via MediaPipe
-- infers pose payload via /api/live/ingest
-- pushes events into backend websocket /ws/live
+Простой клиент веб-камеры:
+- получает landmarks через MediaPipe
+- формирует событие позы через /api/live/ingest
+- отправляет события в backend websocket /ws/live
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import websockets.sync.client
 
 try:
     import mediapipe as mp
-except Exception:  # pragma: no cover - optional for non-camera envs
+except Exception:  # pragma: no cover - необязательно для окружений без камеры
     mp = None
 
 
@@ -24,13 +24,13 @@ BACKEND_HTTP = "http://localhost:8000"
 BACKEND_WS = "ws://localhost:8000/ws/live"
 ZONE_ID = "treadmill_zone_1"
 
-# Normalized ROI for treadmill-like area in camera frame.
+# Нормализованный ROI для зоны "беговой дорожки" в кадре.
 ROI = {"x_min": 0.25, "y_min": 0.2, "x_max": 0.75, "y_max": 0.95}
 
 
 def iter_landmarks(cap: cv2.VideoCapture):
     if mp is None:
-        raise RuntimeError("mediapipe is not installed")
+        raise RuntimeError("Пакет mediapipe не установлен")
 
     pose = mp.solutions.pose.Pose(
         min_detection_confidence=0.5,
@@ -57,7 +57,7 @@ def iter_landmarks(cap: cv2.VideoCapture):
 def run() -> None:
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        raise RuntimeError("Unable to open camera")
+        raise RuntimeError("Не удалось открыть камеру")
 
     with websockets.sync.client.connect(BACKEND_WS) as ws:
         for landmarks in iter_landmarks(cap):

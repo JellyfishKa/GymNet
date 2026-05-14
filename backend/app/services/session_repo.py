@@ -35,3 +35,13 @@ def get_recent_dwell_history(db: Session, zone_id: str, limit: int = 20) -> list
     )
     rows = db.execute(query).all()
     return [row[0] for row in rows]
+
+
+def get_recent_sessions(db: Session, zone_id: str, limit: int = 20) -> list[ZoneSession]:
+    query = (
+        select(ZoneSession)
+        .where(ZoneSession.zone_id == zone_id)
+        .order_by(desc(ZoneSession.created_at))
+        .limit(limit)
+    )
+    return list(db.scalars(query).all())

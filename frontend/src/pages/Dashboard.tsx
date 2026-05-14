@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import LiveControls from "../components/LiveControls";
+import RecentSessions from "../components/RecentSessions";
 import ZoneCard from "../components/ZoneCard";
+import { fetchRecentSessions, type RecentSession } from "../services/apiClient";
 import { LiveWsClient, type LiveUpdatePayload, type ZoneResponse } from "../services/wsClient";
+import { exerciseLabel } from "../utils/labels";
 
 const initialZone = {
   zone_id: "treadmill_zone_1",
@@ -14,6 +17,7 @@ const initialZone = {
 } as const;
 
 export default function Dashboard() {
+  const [sessions, setSessions] = useState<RecentSession[]>([]);
   const [lastMessage, setLastMessage] = useState<ZoneResponse>({
     zone: initialZone,
     sadla_phase: "Neutral",
@@ -29,10 +33,25 @@ export default function Dashboard() {
   );
 
   useEffect(() => {
-    return () => {
-      // browser auto-closes socket, explicit close not required for this simple MVP
+    const loadSessions = async () => {
+      try {
+        const data = await fetchRecentSessions(lastMessage.zone.zone_id);
+        setSessions(data);
+      } catch {
+        // Игнорируем кратковременную недоступность API на раннем этапе запуска.
+      }
     };
-  }, []);
+    void loadSessions();
+    const timer = window.setInterval(() => {
+      void loadSessions();
+    }, 5000);
+
+    return () => {
+      // Браузер сам закрывает сокет при размонтировании.
+      // Явное закрытие здесь не требуется для текущего MVP.
+      window.clearInterval(timer);
+    };
+  }, [lastMessage.zone.zone_id]);
 
   const send = (payload: LiveUpdatePayload) => {
     ws.send(payload);
@@ -40,8 +59,11 @@ export default function Dashboard() {
 
   return (
     <main className="layout">
-      <h1>GymNet Live Dashboard</h1>
-      <p>Сценарии: ResistanceBand, PushUps, Squats, RunInPlace (treadmill ROI)</p>
+      <h1>GymNet: панель мониторинга в реальном времени</h1>
+      <p>
+        Сценарии: {exerciseLabel("ResistanceBand")}, {exerciseLabel("PushUps")}, {exerciseLabel("Squats")},{" "}
+        {exerciseLabel("RunInPlace")}
+      </p>
       <ZoneCard
         zoneId={lastMessage.zone.zone_id}
         status={lastMessage.zone.status}
@@ -52,6 +74,7 @@ export default function Dashboard() {
         phase={lastMessage.sadla_phase}
       />
       <LiveControls onSend={send} />
+      <RecentSessions sessions={sessions} />
     </main>
   );
 }

@@ -45,7 +45,8 @@ def classify_exercise(landmarks: dict[str, tuple[float, float]], treadmill_zone:
     knees = [landmarks.get("left_knee"), landmarks.get("right_knee")]
 
     if all(w and s for w, s in zip(wrists, shoulders)):
-        # Wrists above shoulder level often indicates pulling band in this MVP heuristic.
+        # В этой эвристике для MVP считаем, что резина используется,
+        # если обе кисти устойчиво выше уровня плеч.
         if wrists[0][1] < shoulders[0][1] and wrists[1][1] < shoulders[1][1]:
             return "ResistanceBand"
 

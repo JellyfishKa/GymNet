@@ -4,9 +4,9 @@
 
 ## Текущий статус
 
-- Backend: `FastAPI` + `WebSocket` для live-обновлений.
-- HTTP ingest endpoint: `/api/live/ingest` (landmarks -> presence/exercise/phase/penalty).
-- Frontend: `React` dashboard для сценариев `ResistanceBand`, `PushUps`, `Squats`, `RunInPlace`.
+- Backend: `FastAPI` + `WebSocket` для обновлений в реальном времени.
+- HTTP-эндпоинт ingest: `/api/live/ingest` (`landmarks -> presence/exercise/phase/penalty`).
+- Frontend: `React`-дашборд для сценариев `ResistanceBand`, `PushUps`, `Squats`, `RunInPlace`.
 - ML: notebook-first пайплайн в `ml/notebooks`.
 - Infra: локальный `PostgreSQL` через Docker Compose.
 - Персист завершенных сессий в БД (`zone_sessions`).

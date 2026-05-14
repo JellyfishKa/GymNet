@@ -1,6 +1,7 @@
 /stacked docs
 /frontend/node_modules
 /frontend/dist
+/frontend/*.tsbuildinfo
 /backend/**/__pycache__
 *.pyc
 .venv

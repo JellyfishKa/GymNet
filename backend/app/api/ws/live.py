@@ -33,7 +33,8 @@ async def websocket_live(websocket: WebSocket) -> None:
             zone.rep_count = sadla.reps
             zone.form_score = max(0.0, zone.form_score - incoming.form_penalty)
 
-            # When user leaves zone, keep dwell in history for later ETA prediction.
+            # Когда пользователь покидает зону, сохраняем длительность
+            # для последующего прогноза времени освобождения.
             if not incoming.is_present and previous_dwell > 0:
                 history_store.setdefault(incoming.zone_id, []).append(previous_dwell)
                 db: Session = SessionLocal()
@@ -41,7 +42,7 @@ async def websocket_live(websocket: WebSocket) -> None:
                     save_zone_session(
                         db,
                         zone_id=incoming.zone_id,
-                        exercise=previous_exercise or "Unknown",
+                        exercise=previous_exercise or "Неизвестно",
                         dwell_seconds=previous_dwell,
                         rep_count=previous_rep_count,
                         form_score=previous_form_score,
