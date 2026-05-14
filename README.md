@@ -8,13 +8,24 @@
 - HTTP-эндпоинт ingest: `/api/live/ingest` (`landmarks -> presence/exercise/phase/penalty`).
 - Frontend: `React`-дашборд для сценариев `ResistanceBand`, `PushUps`, `Squats`, `RunInPlace`.
 - ML: notebook-first пайплайн в `ml/notebooks`.
-- Infra: локальный `PostgreSQL` через Docker Compose.
+- Infra: запуск в контейнерах `postgres + backend + frontend` через Docker Compose.
 - Персист завершенных сессий в БД (`zone_sessions`).
 
-## Быстрый старт
+## Быстрый старт (Docker)
 
-1. Поднять Postgres:
-   - `docker compose -f infra/docker-compose.yml up -d`
+1. Собрать и запустить контейнеры:
+   - `docker compose -f infra/docker-compose.yml up --build -d`
+2. Открыть приложение:
+   - `http://localhost:8080`
+3. Проверить API:
+   - `http://localhost:8000/api/health`
+4. Остановить окружение:
+   - `docker compose -f infra/docker-compose.yml down`
+
+## Локальный запуск без Docker
+
+1. Поднять только Postgres:
+   - `docker compose -f infra/docker-compose.yml up -d postgres`
 2. Запустить backend:
    - `cd backend`
    - `pip install -r requirements.txt`

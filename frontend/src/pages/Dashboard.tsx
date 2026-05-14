@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import LiveControls from "../components/LiveControls";
 import RecentSessions from "../components/RecentSessions";
 import ZoneCard from "../components/ZoneCard";
+import { wsLiveUrl } from "../config/runtime";
 import { fetchRecentSessions, type RecentSession } from "../services/apiClient";
 import { LiveWsClient, type LiveUpdatePayload, type ZoneResponse } from "../services/wsClient";
 import { exerciseLabel } from "../utils/labels";
@@ -26,7 +27,7 @@ export default function Dashboard() {
 
   const ws = useMemo(
     () =>
-      new LiveWsClient("ws://localhost:8000/ws/live", (message) => {
+      new LiveWsClient(wsLiveUrl(), (message) => {
         setLastMessage(message);
       }),
     [],

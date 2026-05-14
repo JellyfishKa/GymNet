@@ -1,3 +1,5 @@
+import { apiPath } from "../config/runtime";
+
 export type RecentSession = {
   id: number;
   exercise: string;
@@ -12,7 +14,7 @@ export type SessionResponse = {
 };
 
 export async function fetchRecentSessions(zoneId: string): Promise<RecentSession[]> {
-  const response = await fetch(`http://localhost:8000/api/sessions/${zoneId}`);
+  const response = await fetch(apiPath(`/api/sessions/${zoneId}`));
   if (!response.ok) {
     throw new Error(`Не удалось загрузить сессии: ${response.status}`);
   }

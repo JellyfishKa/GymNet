@@ -1,17 +1,52 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: gymnet-postgres
     environment:
       POSTGRES_USER: gymnet
       POSTGRES_PASSWORD: gymnet
       POSTGRES_DB: gymnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gymnet -d gymnet"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://gymnet:gymnet@postgres:5432/gymnet
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "8080:80"
 
 volumes:
   postgres_data:

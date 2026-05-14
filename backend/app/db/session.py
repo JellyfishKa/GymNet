@@ -1,7 +1,9 @@
 import os
+import time
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import Base
@@ -18,6 +20,13 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expi
 
 
 def init_db() -> None:
+    # На старте контейнера БД может быть еще не готова.
+    for _ in range(20):
+        try:
+            Base.metadata.create_all(bind=engine)
+            return
+        except OperationalError:
+            time.sleep(1)
     Base.metadata.create_all(bind=engine)
 
 
