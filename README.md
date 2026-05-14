@@ -1,0 +1,29 @@
+# GymNet
+
+Каркас курсового проекта для интеллектуального мониторинга спортзала.
+
+## Текущий статус
+
+- Backend: `FastAPI` + `WebSocket` для live-обновлений.
+- Frontend: `React` dashboard для сценариев `ResistanceBand`, `PushUps`, `Squats`, `RunInPlace`.
+- ML: notebook-first пайплайн в `ml/notebooks`.
+- Infra: локальный `PostgreSQL` через Docker Compose.
+
+## Быстрый старт
+
+1. Поднять Postgres:
+   - `docker compose -f infra/docker-compose.yml up -d`
+2. Запустить backend:
+   - `cd backend`
+   - `pip install -r requirements.txt`
+   - `uvicorn app.main:app --reload --port 8000`
+3. Запустить frontend:
+   - `cd frontend`
+   - `npm install`
+   - `npm run dev`
+
+## ML ноутбуки
+
+- `ml/notebooks/01_data_prep.ipynb`
+- `ml/notebooks/02_train_cnn_resbigru.ipynb`
+- `ml/notebooks/03_eval_and_ablation.ipynb`

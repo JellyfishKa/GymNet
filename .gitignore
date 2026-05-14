@@ -1,0 +1,7 @@
+/stacked docs
+/frontend/node_modules
+/frontend/dist
+/backend/**/__pycache__
+*.pyc
+.venv
+/ml/notebooks/.ipynb_checkpoints

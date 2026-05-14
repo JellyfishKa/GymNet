@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gymnet-postgres
+    environment:
+      POSTGRES_USER: gymnet
+      POSTGRES_PASSWORD: gymnet
+      POSTGRES_DB: gymnet
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

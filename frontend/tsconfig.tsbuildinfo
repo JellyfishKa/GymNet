@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/livecontrols.tsx","./src/components/zonecard.tsx","./src/pages/dashboard.tsx","./src/services/wsclient.ts"],"version":"5.9.3"}
