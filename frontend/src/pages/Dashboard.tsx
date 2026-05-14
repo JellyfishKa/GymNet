@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import CameraControls from "../components/CameraControls";
 import LiveControls from "../components/LiveControls";
 import RecentSessions from "../components/RecentSessions";
 import ZoneCard from "../components/ZoneCard";
@@ -75,6 +76,7 @@ export default function Dashboard() {
         phase={lastMessage.sadla_phase}
       />
       <LiveControls onSend={send} />
+      <CameraControls onLiveEvent={send} />
       <RecentSessions sessions={sessions} />
     </main>
   );

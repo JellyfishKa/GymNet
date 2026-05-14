@@ -7,6 +7,7 @@
 - Backend: `FastAPI` + `WebSocket` для обновлений в реальном времени.
 - HTTP-эндпоинт ingest: `/api/live/ingest` (`landmarks -> presence/exercise/phase/penalty`).
 - Frontend: `React`-дашборд для сценариев `ResistanceBand`, `PushUps`, `Squats`, `RunInPlace`.
+- В интерфейсе есть кнопки `Включить камеру` / `Выключить камеру` для live-потока с браузерной камеры.
 - ML: notebook-first пайплайн в `ml/notebooks`.
 - Infra: запуск в контейнерах `postgres + backend + frontend` через Docker Compose.
 - Персист завершенных сессий в БД (`zone_sessions`).
@@ -37,6 +38,17 @@
 4. (Опционально) Подключить веб-камеру в live-поток:
    - `pip install -r backend/requirements.txt`
    - `python scripts/camera_ws_client.py`
+
+## ML в Docker
+
+Для запуска контейнеров обучения используйте профиль `ml`:
+
+- Поднять ноутбук Jupyter:
+  - `docker compose -f infra/docker-compose.yml --profile ml up --build -d ml-notebook`
+- Запустить быструю тренировку в контейнере:
+  - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-train`
+- Запустить быструю оценку:
+  - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-eval`
 
 ## ML ноутбуки
 

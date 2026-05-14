@@ -48,5 +48,34 @@ services:
     ports:
       - "8080:80"
 
+  ml-notebook:
+    build:
+      context: ../ml
+      dockerfile: Dockerfile
+    profiles: ["ml"]
+    restart: unless-stopped
+    volumes:
+      - ../ml:/workspace
+    ports:
+      - "8888:8888"
+
+  ml-train:
+    build:
+      context: ../ml
+      dockerfile: Dockerfile
+    profiles: ["ml"]
+    volumes:
+      - ../ml:/workspace
+    command: ["python", "train.py"]
+
+  ml-eval:
+    build:
+      context: ../ml
+      dockerfile: Dockerfile
+    profiles: ["ml"]
+    volumes:
+      - ../ml:/workspace
+    command: ["python", "evaluate.py"]
+
 volumes:
   postgres_data:

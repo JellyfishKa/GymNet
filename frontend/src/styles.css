@@ -52,3 +52,16 @@ td {
   padding: 8px;
   border-bottom: 1px solid #334155;
 }
+
+.camera-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.camera-preview {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #020617;
+}
