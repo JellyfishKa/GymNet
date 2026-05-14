@@ -5,9 +5,11 @@
 ## Текущий статус
 
 - Backend: `FastAPI` + `WebSocket` для live-обновлений.
+- HTTP ingest endpoint: `/api/live/ingest` (landmarks -> presence/exercise/phase/penalty).
 - Frontend: `React` dashboard для сценариев `ResistanceBand`, `PushUps`, `Squats`, `RunInPlace`.
 - ML: notebook-first пайплайн в `ml/notebooks`.
 - Infra: локальный `PostgreSQL` через Docker Compose.
+- Персист завершенных сессий в БД (`zone_sessions`).
 
 ## Быстрый старт
 
@@ -21,6 +23,9 @@
    - `cd frontend`
    - `npm install`
    - `npm run dev`
+4. (Опционально) Подключить веб-камеру в live-поток:
+   - `pip install -r backend/requirements.txt`
+   - `python scripts/camera_ws_client.py`
 
 ## ML ноутбуки
 

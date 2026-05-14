@@ -4,3 +4,8 @@ pydantic
 sqlalchemy
 psycopg2-binary
 pytest
+numpy
+opencv-python
+mediapipe
+requests
+websockets
