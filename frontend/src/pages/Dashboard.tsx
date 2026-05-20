@@ -14,7 +14,10 @@ const initialZone = {
   status: "Free",
   dwell_seconds: 0,
   current_exercise: null,
+  exercise_seconds: 0,
   rep_count: 0,
+  total_exercise_seconds: 0,
+  total_rep_count: 0,
   form_score: 100,
 } as const;
 
@@ -23,6 +26,7 @@ export default function Dashboard() {
   const [lastMessage, setLastMessage] = useState<ZoneResponse>({
     zone: initialZone,
     sadla_phase: "Neutral",
+    minutes_to_free: 15,
     supported_exercises: ["ResistanceBand", "PushUps", "Squats", "RunInPlace"],
   });
 
@@ -71,7 +75,11 @@ export default function Dashboard() {
         status={lastMessage.zone.status}
         dwellSeconds={lastMessage.zone.dwell_seconds}
         exercise={lastMessage.zone.current_exercise}
+        exerciseSeconds={lastMessage.zone.exercise_seconds}
         reps={lastMessage.zone.rep_count}
+        totalExerciseSeconds={lastMessage.zone.total_exercise_seconds}
+        totalReps={lastMessage.zone.total_rep_count}
+        minutesToFree={lastMessage.minutes_to_free ?? 15}
         formScore={lastMessage.zone.form_score}
         phase={lastMessage.sadla_phase}
       />

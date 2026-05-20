@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Pose, type Results } from "@mediapipe/pose";
 
 import { apiPath } from "../config/runtime";
+import { createPose, type MediaPipePose, type Results } from "../utils/mediapipePose";
 import type { LiveUpdatePayload } from "../services/wsClient";
 
 type CameraControlsProps = {
@@ -47,7 +47,7 @@ const LANDMARK_NAMES = [
 export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const poseRef = useRef<Pose | null>(null);
+  const poseRef = useRef<MediaPipePose | null>(null);
   const rafRef = useRef<number | null>(null);
   const processingRef = useRef(false);
   const lastSentRef = useRef(0);
@@ -55,6 +55,9 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
   const [enabled, setEnabled] = useState(false);
   const [zoneId, setZoneId] = useState("treadmill_zone_1");
   const [status, setStatus] = useState("Камера выключена");
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState("");
 
   const stopCamera = (resetStatus = true) => {
     setEnabled(false);
@@ -76,6 +79,29 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
     }
     if (videoRef.current) {
       videoRef.current.srcObject = null;
+    }
+  };
+
+  const pushDebug = (entry: string) => {
+    const line = `[${new Date().toLocaleTimeString("ru-RU")}] ${entry}`;
+    // eslint-disable-next-line no-console
+    console.info("[CameraControls]", line);
+    setDebugLog((prev) => [...prev.slice(-7), line]);
+  };
+
+  const extractErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) {
+      return `${error.message}${error.stack ? `\n${error.stack}` : ""}`;
+    }
+    return String(error);
+  };
+
+  const loadVideoDevices = async () => {
+    const all = await navigator.mediaDevices.enumerateDevices();
+    const videoInputs = all.filter((d) => d.kind === "videoinput");
+    setDevices(videoInputs);
+    if (!selectedDeviceId && videoInputs.length > 0) {
+      setSelectedDeviceId(videoInputs[0].deviceId);
     }
   };
 
@@ -148,11 +174,19 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
     processingRef.current = true;
     try {
       await poseRef.current.send({ image: videoRef.current });
+    } catch (error) {
+      const details = extractErrorMessage(error);
+      pushDebug(`Ошибка в pose.send(): ${details}`);
+      setStatus(`Ошибка обработки кадра: ${details}`);
+      stopCamera(false);
+      return;
     } finally {
       processingRef.current = false;
-      rafRef.current = window.requestAnimationFrame(() => {
-        void processFrame();
-      });
+      if (streamRef.current && poseRef.current) {
+        rafRef.current = window.requestAnimationFrame(() => {
+          void processFrame();
+        });
+      }
     }
   };
 
@@ -161,27 +195,36 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
       return;
     }
     try {
+      pushDebug("Старт камеры: запрашиваю getUserMedia");
       setStatus("Запрашиваю доступ к камере...");
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
+        },
         audio: false,
       });
+      pushDebug(`getUserMedia OK, треков: ${stream.getTracks().length}`);
       streamRef.current = stream;
       if (!videoRef.current) {
         throw new Error("Видеоэлемент не найден");
       }
       videoRef.current.srcObject = stream;
+      pushDebug("Ожидаю готовность видеопотока");
       await waitVideoReady(videoRef.current);
       try {
         await videoRef.current.play();
+        pushDebug("video.play() выполнен");
       } catch {
         // Для некоторых браузеров play может вернуть reject,
         // но поток при этом уже доступен и кадры читаются.
+        pushDebug("video.play() rejected, продолжаю");
       }
 
-      const pose = new Pose({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
-      });
+      pushDebug("Создаю MediaPipe Pose");
+      const pose = await createPose();
+      pushDebug("Pose создан, применяю setOptions");
       pose.setOptions({
         modelComplexity: 1,
         smoothLandmarks: true,
@@ -195,18 +238,43 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
 
       setEnabled(true);
       setStatus("Камера включена");
+      pushDebug("Камера активна, запускаю цикл кадров");
+      await loadVideoDevices();
       rafRef.current = window.requestAnimationFrame(() => {
         void processFrame();
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Неизвестная ошибка камеры";
+      const message = extractErrorMessage(error);
+      // eslint-disable-next-line no-console
+      console.error("[CameraControls] startCamera error", error);
+      pushDebug(`Падение startCamera(): ${message}`);
       setStatus(`Ошибка камеры: ${message}`);
       stopCamera(false);
     }
   };
 
   useEffect(() => {
+    const initDevices = async () => {
+      try {
+        await loadVideoDevices();
+      } catch {
+        // Игнорируем ошибки на этапе первичного чтения списка устройств.
+      }
+    };
+    void initDevices();
+
+    const onWindowError = (event: ErrorEvent) => {
+      pushDebug(`window.onerror: ${event.message}`);
+    };
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      pushDebug(`unhandledrejection: ${extractErrorMessage(event.reason)}`);
+    };
+    window.addEventListener("error", onWindowError);
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
+
     return () => {
+      window.removeEventListener("error", onWindowError);
+      window.removeEventListener("unhandledrejection", onUnhandledRejection);
       stopCamera();
     };
   }, []);
@@ -218,6 +286,20 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
         Идентификатор зоны камеры
         <input value={zoneId} onChange={(event) => setZoneId(event.target.value)} />
       </label>
+      <label>
+        Устройство камеры
+        <select value={selectedDeviceId} onChange={(event) => setSelectedDeviceId(event.target.value)} disabled={enabled}>
+          {devices.length === 0 ? (
+            <option value="">Камера не найдена</option>
+          ) : (
+            devices.map((device, idx) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `Камера ${idx + 1}`}
+              </option>
+            ))
+          )}
+        </select>
+      </label>
       <div className="camera-actions">
         <button onClick={startCamera} disabled={enabled}>
           Включить камеру
@@ -225,8 +307,17 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
         <button onClick={() => stopCamera()} disabled={!enabled}>
           Выключить камеру
         </button>
+        <button onClick={() => void loadVideoDevices()} disabled={enabled}>
+          Обновить список
+        </button>
       </div>
       <p>{status}</p>
+      {debugLog.length > 0 && (
+        <details>
+          <summary>Логи камеры</summary>
+          <pre>{debugLog.join("\n")}</pre>
+        </details>
+      )}
       <video ref={videoRef} className="camera-preview" playsInline muted autoPlay />
     </section>
   );

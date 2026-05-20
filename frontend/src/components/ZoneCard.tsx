@@ -5,7 +5,11 @@ type ZoneCardProps = {
   status: string;
   dwellSeconds: number;
   exercise: string | null;
+  exerciseSeconds: number;
   reps: number;
+  totalExerciseSeconds: number;
+  totalReps: number;
+  minutesToFree: number;
   formScore: number;
   phase: string;
 };
@@ -17,7 +21,11 @@ export default function ZoneCard(props: ZoneCardProps) {
       <p>Статус: {statusLabel(props.status)}</p>
       <p>Упражнение: {exerciseLabel(props.exercise)}</p>
       <p>Время в зоне: {props.dwellSeconds} сек</p>
-      <p>Повторения: {props.reps}</p>
+      <p>Время текущего упражнения: {props.exerciseSeconds} сек</p>
+      <p>Повторения текущего упражнения: {props.reps}</p>
+      <p>Суммарное время упражнений в сессии: {props.totalExerciseSeconds} сек</p>
+      <p>Суммарные повторения в сессии: {props.totalReps}</p>
+      <p>Прогноз до освобождения: {props.minutesToFree} мин</p>
       <p>Оценка техники: {props.formScore}</p>
       <p>Фаза SADLA: {phaseLabel(props.phase)}</p>
     </section>

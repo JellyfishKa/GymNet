@@ -53,8 +53,9 @@ services:
       context: ../ml
       dockerfile: Dockerfile
       args:
-        REQUIREMENTS_FILE: requirements.pipeline.txt
+        REQUIREMENTS_FILE: requirements.gpu.txt
     restart: "no"
+    gpus: all
     volumes:
       - ../ml:/workspace
     command: ["python", "run_pipeline.py"]
@@ -104,19 +105,6 @@ services:
     volumes:
       - ../ml:/workspace
     command: ["python", "evaluate.py"]
-
-  ml-pipeline-gpu:
-    build:
-      context: ../ml
-      dockerfile: Dockerfile
-      args:
-        REQUIREMENTS_FILE: requirements.gpu.txt
-    profiles: ["ml-gpu"]
-    gpus: all
-    restart: "no"
-    volumes:
-      - ../ml:/workspace
-    command: ["python", "run_pipeline.py"]
 
 volumes:
   postgres_data:

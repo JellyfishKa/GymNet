@@ -43,10 +43,11 @@ Invoke-Step -Title "Start base stack" -Command $baseUp
 if (-not $NoML) {
     $useGpu = Test-NvidiaAvailable
     if ($useGpu) {
-        Invoke-Step -Title "Run ML pipeline on GPU" -Command "docker compose -f $composeFile --profile ml-gpu run --rm ml-pipeline-gpu"
+        Write-Host "NVIDIA runtime detected: ML pipeline will prefer GPU."
     } else {
-        Invoke-Step -Title "Run ML pipeline on CPU" -Command "docker compose -f $composeFile run --rm ml-pipeline"
+        Write-Host "NVIDIA runtime not detected: ML pipeline will run on CPU."
     }
+    Invoke-Step -Title "Run ML pipeline (auto device select)" -Command "docker compose -f $composeFile run --rm ml-pipeline"
 }
 
 Write-Host ""

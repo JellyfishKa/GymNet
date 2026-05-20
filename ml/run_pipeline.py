@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import torch
+
 
 def run_step(title: str, command: list[str]) -> None:
     print(f"\n=== {title} ===")
@@ -21,6 +23,9 @@ def run_step(title: str, command: list[str]) -> None:
 def main() -> None:
     root = Path(__file__).resolve().parent
     py = sys.executable
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Доступное устройство для ML-конвейера: {device}")
 
     run_step("Генерация синтетического датасета", [py, str(root / "generate_synthetic_dataset.py")])
     run_step("Обучение модели", [py, str(root / "train.py")])

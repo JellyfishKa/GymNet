@@ -32,6 +32,7 @@ def main() -> None:
         raise ValueError("Синтетический train-датасет пустой")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Выбранное устройство обучения: {device}")
     model = CnnResBiGRU(in_features=99, num_classes=len(CLASSES)).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.CrossEntropyLoss()

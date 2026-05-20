@@ -11,7 +11,8 @@
 - ML: notebook-first пайплайн в `ml/notebooks`.
 - Infra: запуск в контейнерах `postgres + backend + frontend` через Docker Compose.
 - ML-конвейер автоматически выполняется контейнером `ml-pipeline` при обычном `docker compose up`.
-- Для ноутбуков с NVIDIA (например, RTX 3060) доступен GPU-конвейер `ml-pipeline-gpu`.
+- ML-конвейер автоматически выбирает `GPU`, если доступен, иначе запускается на `CPU`.
+- В `docker-compose` для `ml-pipeline` включен `gpus: all`, чтобы CUDA была доступна внутри контейнера.
 - Персист завершенных сессий в БД (`zone_sessions`).
 
 ## Быстрый старт (Docker)
@@ -35,9 +36,7 @@
    - `http://localhost:8000/api/health`
 4. Проверить статус ML-конвейера:
    - `docker compose -f infra/docker-compose.yml logs ml-pipeline`
-5. (Опционально) Запустить GPU-конвейер ML:
-   - `docker compose -f infra/docker-compose.yml --profile ml-gpu up --build ml-pipeline-gpu`
-6. Остановить окружение:
+5. Остановить окружение:
    - `docker compose -f infra/docker-compose.yml down`
 
 ## Локальный запуск без Docker
@@ -59,7 +58,7 @@
 ## ML в Docker
 
 По умолчанию ML-конвейер `generate -> train -> eval` запускается автоматически сервисом `ml-pipeline`.
-Если хотите использовать GPU (RTX 3060), запускайте `ml-pipeline-gpu`.
+При наличии доступного CUDA-устройства будет выбран GPU, иначе выполнение продолжится на CPU.
 
 Для ручных сценариев и ноутбука используйте профиль `ml`:
 
@@ -73,8 +72,6 @@
   - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-eval`
 - Повторно запустить полный конвейер одной командой:
   - `docker compose -f infra/docker-compose.yml run --rm ml-pipeline`
-- Запустить полный конвейер на GPU:
-  - `docker compose -f infra/docker-compose.yml --profile ml-gpu run --rm ml-pipeline-gpu`
 
 ## Датасеты и даты экспериментов
 

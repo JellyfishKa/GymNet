@@ -12,10 +12,14 @@ export type ZoneResponse = {
     status: "Free" | "Busy" | "Crowded";
     dwell_seconds: number;
     current_exercise: string | null;
+    exercise_seconds: number;
     rep_count: number;
+    total_exercise_seconds: number;
+    total_rep_count: number;
     form_score: number;
   };
   sadla_phase: string;
+  minutes_to_free?: number;
   supported_exercises: string[];
 };
 
