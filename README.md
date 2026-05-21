@@ -9,7 +9,7 @@
 - Frontend: `React`-дашборд для сценариев `ResistanceBand`, `PushUps`, `Squats`, `RunInPlace`.
 - В интерфейсе есть кнопки `Включить камеру` / `Выключить камеру` для live-потока с браузерной камеры.
 - ML: notebook-first пайплайн в `ml/notebooks`.
-- Infra: запуск в контейнерах `postgres + backend + frontend` через Docker Compose.
+- Infra: запуск в контейнерах `postgres + backend + frontend + ml-autotrain` через Docker Compose.
 - ML-конвейер автоматически выполняется контейнером `ml-pipeline` при обычном `docker compose up`.
 - ML-конвейер автоматически выбирает `GPU`, если доступен, иначе запускается на `CPU`.
 - В `docker-compose` для `ml-pipeline` включен `gpus: all`, чтобы CUDA была доступна внутри контейнера.
@@ -36,8 +36,26 @@
    - `http://localhost:8000/api/health`
 4. Проверить статус ML-конвейера:
    - `docker compose -f infra/docker-compose.yml logs ml-pipeline`
-5. Остановить окружение:
+5. Проверить авто-retrain (фоновый сервис):
+   - `docker compose -f infra/docker-compose.yml logs ml-autotrain`
+   - статус в UI: блок `ML: автообучение` на дашборде
+   - API: `http://localhost:8000/api/ml/status`
+6. Остановить окружение:
    - `docker compose -f infra/docker-compose.yml down`
+
+## Авто-retrain во время работы камеры
+
+Поток данных:
+1. Камера отправляет landmarks в `/api/live/ingest`.
+2. Backend накапливает окна `[13, 99]` и пишет их в `live_train.jsonl`.
+3. При завершении сессии сохраняются метрики в `live_sessions.jsonl` и обновляется online-профиль прогноза.
+4. Сервис `ml-autotrain` по порогу новых live-образцов запускает `merge_datasets -> train -> evaluate`.
+5. При успехе модель и отчет публикуются в shared volume; при просадке `macro_f1` выполняется safe-rollback.
+
+Пороги (env):
+- `GYMNET_AUTORETRAIN_MIN_NEW_TRAIN_SAMPLES` (по умолчанию `8`)
+- `GYMNET_AUTORETRAIN_MIN_NEW_SESSIONS` (по умолчанию `10`)
+- `GYMNET_AUTORETRAIN_COOLDOWN_SECONDS` (по умолчанию `900`)
 
 ## Локальный запуск без Docker
 

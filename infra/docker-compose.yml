@@ -21,6 +21,12 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg2://gymnet:gymnet@postgres:5432/gymnet
+      GYMNET_LIVE_SESSIONS_PATH: /shared_ml/live_sessions.jsonl
+      GYMNET_LIVE_TRAIN_PATH: /shared_ml/live_train.jsonl
+      GYMNET_ONLINE_PROFILE_PATH: /shared_ml/online_profile.json
+      GYMNET_AUTORETRAIN_SHARED_STATUS_PATH: /shared_ml/auto_retrain_status.json
+      GYMNET_SHARED_MODEL_PATH: /shared_ml/best_model.pt
+      GYMNET_SHARED_EVAL_PATH: /shared_ml/eval_report.json
     depends_on:
       postgres:
         condition: service_healthy
@@ -32,6 +38,8 @@ services:
       retries: 10
     ports:
       - "8000:8000"
+    volumes:
+      - ml_live_data:/shared_ml
 
   frontend:
     build:
@@ -106,5 +114,33 @@ services:
       - ../ml:/workspace
     command: ["python", "evaluate.py"]
 
+  ml-autotrain:
+    build:
+      context: ../ml
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements.pipeline.txt
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ../ml:/workspace
+      - ml_live_data:/shared_ml
+    environment:
+      GYMNET_LIVE_SESSIONS_PATH: /shared_ml/live_sessions.jsonl
+      GYMNET_LIVE_TRAIN_PATH: /shared_ml/live_train.jsonl
+      GYMNET_AUTORETRAIN_STATE_PATH: /workspace/experiments/auto_retrain_status.json
+      GYMNET_AUTORETRAIN_SHARED_STATUS_PATH: /shared_ml/auto_retrain_status.json
+      GYMNET_SHARED_MODEL_PATH: /shared_ml/best_model.pt
+      GYMNET_SHARED_EVAL_PATH: /shared_ml/eval_report.json
+      GYMNET_AUTORETRAIN_MIN_NEW_SESSIONS: 10
+      GYMNET_AUTORETRAIN_MIN_NEW_TRAIN_SAMPLES: 8
+      GYMNET_AUTORETRAIN_COOLDOWN_SECONDS: 900
+      GYMNET_AUTORETRAIN_POLL_SECONDS: 20
+      GYMNET_AUTORETRAIN_MAX_F1_DROP: 0.02
+    command: ["python", "auto_retrain.py"]
+
 volumes:
   postgres_data:
+  ml_live_data:

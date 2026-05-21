@@ -1,9 +1,15 @@
 import json
+import os
 from pathlib import Path
 from threading import Lock
 
 
-PROFILE_PATH = Path(__file__).resolve().parents[3] / "ml" / "experiments" / "online_profile.json"
+PROFILE_PATH = Path(
+    os.getenv(
+        "GYMNET_ONLINE_PROFILE_PATH",
+        str(Path(__file__).resolve().parents[3] / "ml" / "experiments" / "online_profile.json"),
+    )
+)
 REP_BASED_EXERCISES = {"PushUps", "Squats", "ResistanceBand"}
 _lock = Lock()
 _profile: dict[str, dict[str, float]] | None = None

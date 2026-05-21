@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import CameraControls from "../components/CameraControls";
 import LiveControls from "../components/LiveControls";
+import MlStatusCard from "../components/MlStatusCard";
 import RecentSessions from "../components/RecentSessions";
 import ZoneCard from "../components/ZoneCard";
 import { wsLiveUrl } from "../config/runtime";
-import { fetchRecentSessions, type RecentSession } from "../services/apiClient";
+import { fetchMlStatus, fetchRecentSessions, type MlStatusResponse, type RecentSession } from "../services/apiClient";
 import { LiveWsClient, type LiveUpdatePayload, type ZoneResponse } from "../services/wsClient";
 import { exerciseLabel } from "../utils/labels";
 
@@ -23,6 +24,7 @@ const initialZone = {
 
 export default function Dashboard() {
   const [sessions, setSessions] = useState<RecentSession[]>([]);
+  const [mlStatus, setMlStatus] = useState<MlStatusResponse | null>(null);
   const [lastMessage, setLastMessage] = useState<ZoneResponse>({
     zone: initialZone,
     sadla_phase: "Neutral",
@@ -39,17 +41,23 @@ export default function Dashboard() {
   );
 
   useEffect(() => {
-    const loadSessions = async () => {
+    const loadData = async () => {
       try {
         const data = await fetchRecentSessions(lastMessage.zone.zone_id);
         setSessions(data);
       } catch {
         // Игнорируем кратковременную недоступность API на раннем этапе запуска.
       }
+      try {
+        const status = await fetchMlStatus();
+        setMlStatus(status);
+      } catch {
+        // ML-статус может быть недоступен до первого retrain.
+      }
     };
-    void loadSessions();
+    void loadData();
     const timer = window.setInterval(() => {
-      void loadSessions();
+      void loadData();
     }, 5000);
 
     return () => {
@@ -85,6 +93,7 @@ export default function Dashboard() {
       />
       <LiveControls onSend={send} />
       <CameraControls onLiveEvent={send} />
+      <MlStatusCard status={mlStatus} />
       <RecentSessions sessions={sessions} />
     </main>
   );

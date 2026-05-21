@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.health import router as health_router
 from app.api.routes.live_ingest import router as live_ingest_router
+from app.api.routes.ml_status import router as ml_status_router
 from app.api.routes.predictions import router as predictions_router
 from app.api.routes.sessions import router as sessions_router
 from app.api.ws.live import router as live_ws_router
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router, prefix="/api")
     app.include_router(live_ingest_router, prefix="/api")
+    app.include_router(ml_status_router, prefix="/api")
     app.include_router(sessions_router, prefix="/api")
     app.include_router(predictions_router, prefix="/api")
     app.include_router(live_ws_router)

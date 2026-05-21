@@ -1,0 +1,10 @@
+{
+  "last_seen_sessions": 0,
+  "last_seen_train_samples": 0,
+  "last_retrain_at": null,
+  "runs": 0,
+  "current_seen_sessions": 0,
+  "current_seen_train_samples": 0,
+  "pending_sessions": 0,
+  "pending_train_samples": 0
+}

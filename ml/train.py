@@ -4,6 +4,8 @@
 """
 
 import json
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,12 +22,17 @@ def main() -> None:
     model_path.parent.mkdir(parents=True, exist_ok=True)
     report_path = Path("experiments/train_report.json")
 
-    train_dataset_path = Path("data/synthetic/train_synthetic.jsonl")
-    if not train_dataset_path.exists():
+    combined_path = Path("data/combined/train_combined.jsonl")
+    synthetic_path = Path("data/synthetic/train_synthetic.jsonl")
+    if not synthetic_path.exists():
         raise FileNotFoundError(
             "Не найден data/synthetic/train_synthetic.jsonl. "
             "Сначала запустите: python generate_synthetic_dataset.py"
         )
+
+    merge_script = Path(__file__).resolve().parent / "merge_datasets.py"
+    subprocess.run([sys.executable, str(merge_script)], check=True)
+    train_dataset_path = combined_path if combined_path.exists() else synthetic_path
 
     bundle = load_dataset(train_dataset_path)
     if len(bundle.x) == 0:
@@ -65,6 +72,7 @@ def main() -> None:
     report = {
         "trained_at": trained_at,
         "train_dataset": str(train_dataset_path),
+        "synthetic_dataset": str(synthetic_path),
         "train_samples": int(len(bundle.x)),
         "classes": CLASSES,
         "epoch_losses": epoch_losses,

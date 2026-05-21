@@ -4,6 +4,9 @@
 
 - `data/synthetic/*` — синтетические данные для обучения/базовой проверки.
 - `data/real/*` — реальные данные, собранные с камеры.
+- `data/real/live_train.jsonl` — live-окна `[13, 99]` с веб-камеры (для авто-retrain).
+- `data/real/live_sessions.jsonl` — агрегированные завершенные сессии (метрики зоны/упражнения).
+- `data/combined/train_combined.jsonl` — синтетика + live train (собирается `merge_datasets.py`).
 
 ## Структура образца (`jsonl`)
 

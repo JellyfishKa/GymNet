@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.schemas.live import LiveUpdateRequest
+from app.services.landmark_sequence import clear_landmark_buffer, get_ready_window
 from app.services.online_learning import update_online_profile
 from app.services.predictor import predict_minutes_to_free_adaptive
 from app.services.roi import update_zone_occupancy
@@ -10,7 +11,10 @@ from app.services.runtime_store import history_store, sadla_store, zone_store
 from app.services.sadla import SadlaState
 from app.services.session_repo import save_zone_session
 from app.services.state import ZoneState
-from app.services.training_data_sink import append_completed_session_sample
+from app.services.training_data_sink import (
+    append_completed_session_sample,
+    append_live_training_window,
+)
 
 router = APIRouter(tags=["live"])
 REP_BASED_EXERCISES = {"PushUps", "Squats", "ResistanceBand"}
@@ -62,6 +66,15 @@ async def websocket_live(websocket: WebSocket) -> None:
                 finally:
                     db.close()
                 if previous_exercise:
+                    window = get_ready_window(incoming.zone_id)
+                    if window is not None:
+                        append_live_training_window(
+                            zone_id=incoming.zone_id,
+                            exercise=previous_exercise,
+                            window=window,
+                            force=True,
+                        )
+                    clear_landmark_buffer(incoming.zone_id)
                     update_online_profile(
                         zone_id=incoming.zone_id,
                         exercise=previous_exercise,
