@@ -89,7 +89,10 @@ def main() -> None:
         epoch_losses.append(avg_loss)
         print(f"Эпоха {epoch + 1}: потери={avg_loss:.4f}")
 
-    torch.save(model.state_dict(), model_path)
+    torch.save(
+        {"model_state": model.state_dict(), "num_classes": len(CLASSES), "classes": CLASSES},
+        model_path,
+    )
     print(f"Модель сохранена: {model_path}")
 
     report = {

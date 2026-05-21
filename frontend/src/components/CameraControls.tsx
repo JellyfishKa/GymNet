@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import { apiPath } from "../config/runtime";
+import type { PoseIngestResponse } from "../services/ingestTypes";
 import { createPose, type MediaPipePose, type Results } from "../utils/mediapipePose";
-import type { LiveUpdatePayload } from "../services/wsClient";
 
 type CameraControlsProps = {
   zoneId: string;
   setZoneId: (value: string) => void;
-  onLiveEvent: (payload: LiveUpdatePayload) => void;
+  onZoneUpdate: (response: PoseIngestResponse) => void;
 };
 
 const LANDMARK_NAMES = [
@@ -46,7 +46,9 @@ const LANDMARK_NAMES = [
   "right_foot_index",
 ] as const;
 
-export default function CameraControls({ zoneId, setZoneId, onLiveEvent }: CameraControlsProps) {
+const DEFAULT_ROI = { x_min: 0.25, y_min: 0.2, x_max: 0.75, y_max: 0.95 };
+
+export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: CameraControlsProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const poseRef = useRef<MediaPipePose | null>(null);
@@ -147,8 +149,7 @@ export default function CameraControls({ zoneId, setZoneId, onLiveEvent }: Camer
     const landmarks = results.poseLandmarks ?? [];
     const ingestPayload = {
       zone_id: zoneId,
-      treadmill_zone: true,
-      roi: { x_min: 0.25, y_min: 0.2, x_max: 0.75, y_max: 0.95 },
+      roi: DEFAULT_ROI,
       landmarks: landmarks.map((lm, idx) => ({
         name: LANDMARK_NAMES[idx] ?? `point_${idx}`,
         x: lm.x,
@@ -166,9 +167,22 @@ export default function CameraControls({ zoneId, setZoneId, onLiveEvent }: Camer
         scheduleNextFrame();
         return;
       }
-      const event = (await response.json()) as LiveUpdatePayload;
-      onLiveEvent(event);
-      setStatus(event.is_present ? "Камера активна: человек в зоне" : "Камера активна: зона свободна");
+      const event = (await response.json()) as PoseIngestResponse;
+      onZoneUpdate(event);
+      const label = event.zone?.current_exercise ?? event.exercise;
+      if (event.is_present) {
+        setStatus(`В зоне: ${label ?? "—"} (${event.classification_source ?? "—"})`);
+      } else if (event.in_roi && event.activity_rejected === "idle") {
+        setStatus("В кадре, но без упражнения (стоит) — не засчитываем");
+      } else if (event.in_roi && event.activity_rejected === "passing") {
+        setStatus("Проходит мимо — не засчитываем");
+      } else if (event.in_roi && event.activity_rejected === "warming_up") {
+        setStatus("В кадре — ожидаем движение упражнения");
+      } else if (event.in_roi) {
+        setStatus("В кадре — не засчитываем");
+      } else {
+        setStatus("Камера активна: зона свободна");
+      }
     } catch {
       setStatus("Ошибка отправки данных камеры");
     } finally {
@@ -253,7 +267,7 @@ export default function CameraControls({ zoneId, setZoneId, onLiveEvent }: Camer
       poseRef.current = pose;
 
       setEnabled(true);
-      setStatus("Камера включена");
+      setStatus("Камера включена — настройте кадр так, чтобы человек был в рамке ROI");
       pushDebug("Камера активна, запускаю цикл кадров");
       await loadVideoDevices();
       scheduleNextFrame();
@@ -296,6 +310,7 @@ export default function CameraControls({ zoneId, setZoneId, onLiveEvent }: Camer
   return (
     <section className="card">
       <h2>Камера</h2>
+      <p className="hint">Данные зоны обновляются только через ingest (без ручного WebSocket).</p>
       <label>
         Идентификатор зоны камеры
         <input value={zoneId} onChange={(event) => setZoneId(event.target.value)} />

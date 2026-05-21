@@ -14,9 +14,7 @@ RNG = np.random.default_rng(42)
 def _base_pattern(label: str) -> np.ndarray:
     t = np.linspace(0.0, 1.0, 13, dtype=np.float32)
     pattern = np.zeros((13, 99), dtype=np.float32)
-    if label == "ResistanceBand":
-        pattern[:, :] = 0.4 + 0.2 * np.sin(2 * np.pi * t)[:, None]
-    elif label == "PushUps":
+    if label == "PushUps":
         pattern[:, :] = 0.5 + 0.25 * np.sin(4 * np.pi * t)[:, None]
     elif label == "Squats":
         pattern[:, :] = 0.55 + 0.3 * np.abs(np.sin(2 * np.pi * t))[:, None]

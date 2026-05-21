@@ -4,6 +4,7 @@ export type RecentSession = {
   id: number;
   exercise: string;
   dwell_seconds: number;
+  exercise_seconds: number;
   rep_count: number;
   form_score: number;
   created_at: string;
@@ -28,6 +29,7 @@ export type AutotrainStatus = {
 export type MlStatusResponse = {
   autotrain: AutotrainStatus;
   live_train_samples: number;
+  live_classification?: "ml" | "heuristic";
   model_exists: boolean;
   evaluated_at?: string | null;
   synthetic_macro_f1?: number | null;

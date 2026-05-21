@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-CLASSES = ["ResistanceBand", "PushUps", "Squats", "RunInPlace"]
+CLASSES = ["PushUps", "Squats", "RunInPlace"]
 CLASS_TO_ID = {name: idx for idx, name in enumerate(CLASSES)}
 
 
@@ -18,13 +18,9 @@ class DatasetBundle:
 
 
 def _sample_to_array(sample: dict) -> np.ndarray:
-    label = sample.get("label")
-    if label not in CLASS_TO_ID:
-        raise ValueError(f"Неизвестная метка: {label!r}, ожидается одна из {CLASSES}")
-
     sequence = np.asarray(sample["sequence"], dtype=np.float32)
-    if sequence.ndim != 2 or sequence.shape != (13, 99):
-        raise ValueError(f"Ожидается sequence формы (13, 99), получено {sequence.shape}")
+    if sequence.shape != (13, 99):
+        raise ValueError("Ожидается sequence формы [13, 99]")
     return sequence
 
 
@@ -49,6 +45,11 @@ def load_dataset(path: Path) -> DatasetBundle:
             y=np.empty((0,), dtype=np.int64),
             records=[],
         )
+
+    for item in records:
+        label = item.get("label")
+        if label not in CLASS_TO_ID:
+            raise ValueError(f"Неизвестный класс: {label}")
 
     x = np.stack([_sample_to_array(item) for item in records]).astype(np.float32)
     y = np.asarray([CLASS_TO_ID[item["label"]] for item in records], dtype=np.int64)

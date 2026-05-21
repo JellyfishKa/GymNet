@@ -17,18 +17,39 @@ class LandmarkInput(BaseModel):
 class PoseIngestRequest(BaseModel):
     zone_id: str = "treadmill_zone_1"
     roi: RoiSchema
-    treadmill_zone: bool = False
     landmarks: list[LandmarkInput] = Field(default_factory=list, max_length=33)
+
+
+class ZoneSnapshot(BaseModel):
+    zone_id: str
+    status: str
+    dwell_seconds: int = 0
+    current_exercise: str | None = None
+    exercise_seconds: int = 0
+    rep_count: int = 0
+    rep_tempo_seconds: float | None = None
+    total_exercise_seconds: int = 0
+    total_rep_count: int = 0
+    total_rep_tempo_seconds: float | None = None
+    tracks_rep_and_time: bool = False
+    form_score: float = 100.0
 
 
 class PoseIngestResponse(BaseModel):
     zone_id: str
     is_present: bool
+    in_roi: bool = False
+    activity_rejected: str | None = None
     exercise: str
     phase: str
     form_penalty: float
     minutes_to_free: int | None = None
     sadla_phase: str | None = None
-    zone_status: str | None = None
-    dwell_seconds: int | None = None
-    rep_count: int | None = None
+    zone: ZoneSnapshot | None = None
+    classification_source: str | None = None
+    detected_exercise_confidence: float | None = None
+    classification_scores: dict[str, float] | None = None
+    pose_debug: dict[str, float | None] | None = None
+    supported_exercises: list[str] = Field(
+        default_factory=lambda: ["PushUps", "Squats", "RunInPlace"]
+    )

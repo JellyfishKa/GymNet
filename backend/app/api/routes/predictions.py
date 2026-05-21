@@ -15,6 +15,7 @@ def get_prediction(zone_id: str) -> dict:
     dwell = zone.dwell_seconds if zone else 0
     exercise = zone.current_exercise if zone else None
     exercise_seconds = zone.exercise_seconds if zone else 0
+    total_exercise_seconds = zone.total_exercise_seconds if zone else 0
     total_rep_count = zone.total_rep_count if zone else 0
     history = history_store.get(zone_id, [])
     if not history:
@@ -28,6 +29,7 @@ def get_prediction(zone_id: str) -> dict:
         exercise=exercise,
         dwell_seconds=dwell,
         exercise_seconds=exercise_seconds,
+        total_exercise_seconds=total_exercise_seconds,
         total_rep_count=total_rep_count,
         historical_dwell_seconds=history,
     )

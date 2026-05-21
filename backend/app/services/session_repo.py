@@ -11,12 +11,14 @@ def save_zone_session(
     exercise: str,
     dwell_seconds: int,
     rep_count: int,
-    form_score: float,
+    exercise_seconds: int = 0,
+    form_score: float = 100.0,
 ) -> ZoneSession:
     row = ZoneSession(
         zone_id=zone_id,
         exercise=exercise,
         dwell_seconds=dwell_seconds,
+        exercise_seconds=exercise_seconds,
         rep_count=rep_count,
         form_score=form_score,
     )

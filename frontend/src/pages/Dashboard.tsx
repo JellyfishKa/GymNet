@@ -1,16 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import CameraControls from "../components/CameraControls";
-import LiveControls from "../components/LiveControls";
 import MlStatusCard from "../components/MlStatusCard";
 import RecentSessions from "../components/RecentSessions";
 import ZoneCard from "../components/ZoneCard";
-import { wsLiveUrl } from "../config/runtime";
 import { fetchMlStatus, fetchRecentSessions, type MlStatusResponse, type RecentSession } from "../services/apiClient";
-import { LiveWsClient, type LiveUpdatePayload, type ZoneResponse } from "../services/wsClient";
+import type { PoseIngestResponse } from "../services/ingestTypes";
 import { exerciseLabel } from "../utils/labels";
 
-const initialZone = {
+const initialZone: PoseIngestResponse["zone"] = {
   zone_id: "treadmill_zone_1",
   status: "Free",
   dwell_seconds: 0,
@@ -20,37 +18,29 @@ const initialZone = {
   total_exercise_seconds: 0,
   total_rep_count: 0,
   form_score: 100,
-} as const;
+};
 
 export default function Dashboard() {
   const [zoneId, setZoneId] = useState("treadmill_zone_1");
-  const [wsConnected, setWsConnected] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
   const [sessions, setSessions] = useState<RecentSession[]>([]);
   const [mlStatus, setMlStatus] = useState<MlStatusResponse | null>(null);
-  const [lastMessage, setLastMessage] = useState<ZoneResponse>({
-    zone: initialZone,
-    sadla_phase: "Neutral",
+  const [lastMessage, setLastMessage] = useState<PoseIngestResponse>({
+    zone_id: "treadmill_zone_1",
+    is_present: false,
+    exercise: "RunInPlace",
+    phase: "Neutral",
+    form_penalty: 0,
     minutes_to_free: 15,
-    supported_exercises: ["ResistanceBand", "PushUps", "Squats", "RunInPlace"],
+    sadla_phase: "Neutral",
+    zone: initialZone,
+    supported_exercises: ["PushUps", "Squats", "RunInPlace"],
   });
-  const wsRef = useRef<LiveWsClient | null>(null);
 
-  useEffect(() => {
-    const client = new LiveWsClient(wsLiveUrl(), {
-      onMessage: (message) => {
-        setLastMessage(message);
-        setWsConnected(true);
-      },
-      onError: () => setWsConnected(false),
-      onClose: () => setWsConnected(false),
-    });
-    wsRef.current = client;
-
-    return () => {
-      client.close();
-      wsRef.current = null;
-    };
-  }, []);
+  const handleZoneUpdate = (response: PoseIngestResponse) => {
+    setLastMessage(response);
+    setCameraActive(true);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -77,35 +67,38 @@ export default function Dashboard() {
     };
   }, [zoneId]);
 
-  const send = (payload: LiveUpdatePayload) => {
-    wsRef.current?.send({ ...payload, zone_id: zoneId });
-  };
+  const zone = (lastMessage.zone ?? initialZone) as NonNullable<PoseIngestResponse["zone"]>;
 
   return (
     <main className="layout">
       <h1>GymNet: панель мониторинга в реальном времени</h1>
-      {!wsConnected && (
-        <p className="banner-warn">WebSocket отключён — идёт переподключение или backend недоступен.</p>
+      {!cameraActive && (
+        <p className="banner-warn">Камера не активна — включите камеру, чтобы обновлять зону с ingest.</p>
       )}
       <p>
-        Сценарии: {exerciseLabel("ResistanceBand")}, {exerciseLabel("PushUps")}, {exerciseLabel("Squats")},{" "}
-        {exerciseLabel("RunInPlace")}
+        Сценарии: {exerciseLabel("PushUps")}, {exerciseLabel("Squats")}, {exerciseLabel("RunInPlace")}
       </p>
       <ZoneCard
-        zoneId={lastMessage.zone.zone_id}
-        status={lastMessage.zone.status}
-        dwellSeconds={lastMessage.zone.dwell_seconds}
-        exercise={lastMessage.zone.current_exercise}
-        exerciseSeconds={lastMessage.zone.exercise_seconds}
-        reps={lastMessage.zone.rep_count}
-        totalExerciseSeconds={lastMessage.zone.total_exercise_seconds}
-        totalReps={lastMessage.zone.total_rep_count}
+        zoneId={zone.zone_id}
+        status={zone.status}
+        dwellSeconds={zone.dwell_seconds}
+        exercise={zone.current_exercise}
+        exerciseSeconds={zone.exercise_seconds}
+        reps={zone.rep_count}
+        repTempoSeconds={zone.rep_tempo_seconds}
+        totalExerciseSeconds={zone.total_exercise_seconds}
+        totalReps={zone.total_rep_count}
+        totalRepTempoSeconds={zone.total_rep_tempo_seconds}
+        tracksRepAndTime={zone.tracks_rep_and_time}
         minutesToFree={lastMessage.minutes_to_free ?? 15}
-        formScore={lastMessage.zone.form_score}
-        phase={lastMessage.sadla_phase}
+        formScore={zone.form_score}
+        phase={lastMessage.sadla_phase ?? "Neutral"}
+        classificationSource={lastMessage.classification_source}
+        exerciseConfidence={lastMessage.detected_exercise_confidence}
+        classificationScores={lastMessage.classification_scores}
+        poseDebug={lastMessage.pose_debug}
       />
-      <LiveControls zoneId={zoneId} setZoneId={setZoneId} onSend={send} />
-      <CameraControls zoneId={zoneId} setZoneId={setZoneId} onLiveEvent={send} />
+      <CameraControls zoneId={zoneId} setZoneId={setZoneId} onZoneUpdate={handleZoneUpdate} />
       <MlStatusCard status={mlStatus} />
       <RecentSessions sessions={sessions} />
     </main>

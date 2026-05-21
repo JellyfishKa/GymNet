@@ -22,6 +22,7 @@ def get_session(zone_id: str) -> dict:
             "id": row.id,
             "exercise": row.exercise,
             "dwell_seconds": row.dwell_seconds,
+            "exercise_seconds": row.exercise_seconds,
             "rep_count": row.rep_count,
             "form_score": row.form_score,
             "created_at": row.created_at.isoformat(),

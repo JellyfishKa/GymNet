@@ -1,7 +1,7 @@
 export type LiveUpdatePayload = {
   zone_id: string;
   is_present: boolean;
-  exercise?: "ResistanceBand" | "PushUps" | "Squats" | "RunInPlace";
+  exercise?: "PushUps" | "Squats" | "RunInPlace";
   phase?: "Neutral" | "TransitionDown" | "Bottom" | "TransitionUp" | "Standing";
   form_penalty?: number;
 };
@@ -13,8 +13,11 @@ export type ZoneStatePayload = {
   current_exercise: string | null;
   exercise_seconds: number;
   rep_count: number;
+  rep_tempo_seconds?: number | null;
   total_exercise_seconds: number;
   total_rep_count: number;
+  total_rep_tempo_seconds?: number | null;
+  tracks_rep_and_time?: boolean;
   form_score: number;
 };
 
@@ -27,6 +30,7 @@ export type ZoneResponse = {
 
 type WsClientOptions = {
   onMessage: (message: ZoneResponse) => void;
+  onOpen?: () => void;
   onError?: (event: Event) => void;
   onClose?: (event: CloseEvent) => void;
   reconnect?: boolean;
@@ -36,6 +40,7 @@ type WsClientOptions = {
 export class LiveWsClient {
   private url: string;
   private onMessage: (message: ZoneResponse) => void;
+  private onOpen?: () => void;
   private onError?: (event: Event) => void;
   private onClose?: (event: CloseEvent) => void;
   private reconnectEnabled: boolean;
@@ -50,6 +55,7 @@ export class LiveWsClient {
   constructor(url: string, options: WsClientOptions) {
     this.url = url;
     this.onMessage = options.onMessage;
+    this.onOpen = options.onOpen;
     this.onError = options.onError;
     this.onClose = options.onClose;
     this.reconnectEnabled = options.reconnect ?? true;
@@ -63,6 +69,7 @@ export class LiveWsClient {
     this.socket.onopen = () => {
       this.reconnectAttempt = 0;
       this.flushQueue();
+      this.onOpen?.();
     };
 
     this.socket.onmessage = (event) => {

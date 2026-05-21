@@ -80,7 +80,6 @@ def run() -> None:
             ingest_payload = {
                 "zone_id": ZONE_ID,
                 "roi": ROI,
-                "treadmill_zone": True,
                 "landmarks": landmarks,
             }
             ingest_response = requests.post(f"{BACKEND_HTTP}/api/live/ingest", json=ingest_payload, timeout=2.0)

@@ -25,7 +25,7 @@ from app.services.zone_locks import zone_lock
 
 logger = logging.getLogger(__name__)
 
-REP_BASED_EXERCISES = {"PushUps", "Squats", "ResistanceBand"}
+from app.services.rep_exercise_metrics import is_rep_based
 HISTORY_MAXLEN = 50
 _absent_streak: dict[str, int] = {}
 
@@ -61,6 +61,7 @@ def _finalize_session(
             exercise=previous_exercise or "Неизвестно",
             dwell_seconds=previous_dwell,
             rep_count=previous_total_rep_count,
+            exercise_seconds=previous_total_exercise_seconds,
             form_score=previous_form_score,
         )
     except Exception:
@@ -121,10 +122,10 @@ def apply_live_update(incoming: LiveUpdateRequest) -> dict:
         zone = update_zone_occupancy(zone, incoming.is_present, incoming.exercise)
 
         sadla = sadla_store.get(incoming.zone_id) or SadlaState()
-        if zone.current_exercise != previous_exercise and zone.current_exercise in REP_BASED_EXERCISES:
+        if zone.current_exercise != previous_exercise and is_rep_based(zone.current_exercise):
             sadla = SadlaState()
 
-        is_rep_exercise = zone.current_exercise in REP_BASED_EXERCISES
+        is_rep_exercise = is_rep_based(zone.current_exercise)
         previous_current_rep = zone.rep_count
         if incoming.phase and is_rep_exercise:
             sadla.apply_phase(incoming.phase)
@@ -166,6 +167,7 @@ def apply_live_update(incoming: LiveUpdateRequest) -> dict:
             exercise=zone.current_exercise,
             dwell_seconds=zone.dwell_seconds,
             exercise_seconds=zone.exercise_seconds,
+            total_exercise_seconds=zone.total_exercise_seconds,
             total_rep_count=zone.total_rep_count,
             historical_dwell_seconds=history,
         )
@@ -174,10 +176,5 @@ def apply_live_update(incoming: LiveUpdateRequest) -> dict:
             "zone": zone.to_dict(),
             "sadla_phase": sadla.current_phase,
             "minutes_to_free": minutes_to_free,
-            "supported_exercises": [
-                "ResistanceBand",
-                "PushUps",
-                "Squats",
-                "RunInPlace",
-            ],
+            "supported_exercises": ["PushUps", "Squats", "RunInPlace"],
         }

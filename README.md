@@ -6,7 +6,7 @@
 
 - Backend: `FastAPI` + `WebSocket` для обновлений в реальном времени.
 - HTTP-эндпоинт ingest: `/api/live/ingest` (`landmarks -> presence/exercise/phase/penalty`).
-- Frontend: `React`-дашборд для сценариев `ResistanceBand`, `PushUps`, `Squats`, `RunInPlace`.
+- Frontend: `React`-дашборд для сценариев `PushUps`, `Squats`, `RunInPlace` (данные только с камеры через ingest).
 - В интерфейсе есть кнопки `Включить камеру` / `Выключить камеру` для live-потока с браузерной камеры.
 - ML: notebook-first пайплайн в `ml/notebooks`.
 - Infra: запуск в контейнерах `postgres + backend + frontend + ml-autotrain` через Docker Compose.
@@ -36,9 +36,11 @@
    - `docker compose -f infra/docker-compose.yml logs ml-autotrain`
    - статус в UI: блок `ML: автообучение` на дашборде
    - API: `http://localhost:8000/api/ml/status`
-5. (Опционально) Запустить полный ML-конвейер:
+5. (Опционально) Запустить полный ML-конвейер (3 класса, обязательно после смены меток):
    - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-pipeline`
-6. Остановить окружение:
+6. Пересобрать backend после добавления `torch` для live-классификации:
+   - `docker compose -f infra/docker-compose.yml up --build -d backend`
+7. Остановить окружение:
    - `docker compose -f infra/docker-compose.yml down`
 
 ## Авто-retrain во время работы камеры
@@ -96,6 +98,45 @@
   - `ml/experiments/train_report.json` (`trained_at`)
 - Дата тестирования (синтетика + реальные данные) записывается в:
   - `ml/experiments/eval_report.json` (`evaluated_at`)
+
+## Тонкая настройка углов и чёткости
+
+Готовый шаблон переменных: [`infra/tuning.env.example`](infra/tuning.env.example).  
+Скопируйте нужные строки в `environment` сервиса `backend` в [`infra/docker-compose.yml`](infra/docker-compose.yml) и перезапустите:  
+`docker compose -f infra/docker-compose.yml up --build -d backend`
+
+### Как настраивать на практике
+
+1. Откройте дашборд, включите камеру, разверните **«Отладка распознавания»** на карточке зоны.
+2. Выполните **одно** упражнение 3–5 повторов и смотрите live-метрики:
+   - **Отжимания**: `torso_vertical_span` обычно **0.08–0.15** (корпус почти горизонтален). Вверху: `elbow_drop` маленький, `arm_extension` большой. Внизу: `elbow_drop` ≥ `GYMNET_PUSHUP_BOTTOM_MIN_ELBOW_DROP`.
+   - **Приседания**: `torso_vertical_span` обычно **≥ 0.12** (корпус вертикальнее). Вверху: `knee_angle` ≥ **168°**. Внизу: `knee_angle` ≤ **95°**.
+3. Если **путает отжимания с приседаниями** — сначала разведите корпус:
+   - уменьшите `GYMNET_PUSHUP_MAX_TORSO_SPAN` (например `0.13`);
+   - увеличьте `GYMNET_SQUAT_MIN_TORSO_SPAN` (например `0.14`);
+   - увеличьте `GYMNET_CLASSIFY_MIN_MARGIN` (например `0.18`).
+4. Если **не засчитывает полное выпрямление** — уменьшите `STANDING_MIN_ANGLE` на 3–5° (например `165`).
+5. Если **считает повтор раньше lockout** — увеличьте `STANDING_MIN_ANGLE` или `PUSHUP_STANDING_MIN_ARM_EXTENSION`.
+
+Повтор засчитывается только в фазе `Standing` при выполнении lockout; иначе растёт штраф к «Оценке техники».
+
+### Почему путало отжимания и приседания
+
+Частые причины: камера сбоку/сверху (корпус кажется вертикальным в отжимании), ML-модель обучена на синтетике.  
+В коде добавлено: жёсткий tie-break по `torso_vertical_span`, штраф «чужой» позы и при споре ML vs эвристика победа эвристики (`heuristic_override` в UI).
+
+| Упражнение | Ключевые env | Смысл |
+|------------|--------------|--------|
+| Отжимания | `GYMNET_PUSHUP_MAX_TORSO_SPAN`, `GYMNET_PUSHUP_STANDING_MIN_ANGLE`, `GYMNET_PUSHUP_BOTTOM_MIN_ELBOW_DROP` | Горизонталь корпуса, lockout рук, низ |
+| Приседания | `GYMNET_SQUAT_MIN_TORSO_SPAN`, `GYMNET_SQUAT_STANDING_MIN_ANGLE`, `GYMNET_SQUAT_BOTTOM_MAX_ANGLE` | Вертикаль корпуса, lockout ног, глубина |
+| Разделение классов | `GYMNET_CLASSIFY_MIN_MARGIN`, `GYMNET_HEURISTIC_OVERRIDE_MARGIN` | Меньше путаницы PushUps/Squats |
+| Бег | `GYMNET_RUN_MIN_ANKLE_Y_STD`, `GYMNET_RUN_MIN_STEP_DELTA_Y` | Шаг на месте |
+
+## Live-классификация с камеры
+
+- Дашборд обновляется только через `POST /api/live/ingest` (блок «Управление потоком» удалён).
+- Классификация: CNN-ResBiGRU при наличии `best_model.pt`, иначе эвристики по позе.
+- После смены числа классов старый четырёхклассовый `best_model.pt` несовместим — перезапустите `ml-pipeline`.
 
 ## Диагностика камеры
 

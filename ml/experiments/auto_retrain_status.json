@@ -1,12 +1,15 @@
 {
   "last_seen_sessions": 0,
-  "last_seen_train_samples": 0,
-  "last_retrain_at": null,
+  "last_seen_train_samples": 9,
+  "last_retrain_at": "2026-05-21T18:16:33.869836+00:00",
   "runs": 0,
   "current_seen_sessions": 0,
-  "current_seen_train_samples": 0,
+  "current_seen_train_samples": 75,
   "pending_sessions": 0,
-  "pending_train_samples": 0,
-  "runs_success": 0,
-  "runs_failed": 0
+  "pending_train_samples": 66,
+  "runs_success": 1,
+  "runs_failed": 54,
+  "last_result": "failed",
+  "last_details": "Command '['/usr/local/bin/python', 'evaluate.py']' returned non-zero exit status 1.",
+  "last_error": "Command '['/usr/local/bin/python', 'evaluate.py']' returned non-zero exit status 1."
 }

@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from app.services.rep_exercise_metrics import is_rep_based, rep_tempo_seconds
+
 
 @dataclass(slots=True)
 class ZoneState:
@@ -19,6 +21,16 @@ class ZoneState:
     form_score: float = 100.0
 
     def to_dict(self) -> dict:
+        tempo = (
+            rep_tempo_seconds(self.exercise_seconds, self.rep_count)
+            if is_rep_based(self.current_exercise)
+            else None
+        )
+        total_tempo = (
+            rep_tempo_seconds(self.total_exercise_seconds, self.total_rep_count)
+            if is_rep_based(self.current_exercise)
+            else None
+        )
         return {
             "zone_id": self.zone_id,
             "status": self.status,
@@ -28,7 +40,10 @@ class ZoneState:
             "current_exercise": self.current_exercise,
             "exercise_seconds": self.exercise_seconds,
             "rep_count": self.rep_count,
+            "rep_tempo_seconds": tempo,
             "total_exercise_seconds": self.total_exercise_seconds,
             "total_rep_count": self.total_rep_count,
+            "total_rep_tempo_seconds": total_tempo,
+            "tracks_rep_and_time": is_rep_based(self.current_exercise),
             "form_score": round(self.form_score, 2),
         }

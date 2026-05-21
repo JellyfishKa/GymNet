@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ExerciseName = Literal["ResistanceBand", "PushUps", "Squats", "RunInPlace"]
+ExerciseName = Literal["PushUps", "Squats", "RunInPlace"]
 PhaseName = Literal["Neutral", "TransitionDown", "Bottom", "TransitionUp", "Standing"]
 
 

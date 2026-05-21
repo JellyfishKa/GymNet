@@ -5,10 +5,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const EXERCISE_LABELS: Record<string, string> = {
-  ResistanceBand: "Упражнение с резиной",
   PushUps: "Отжимания",
   Squats: "Приседания",
-  RunInPlace: "Бег на месте (зона дорожки)",
+  RunInPlace: "Бег на месте",
 };
 
 const PHASE_LABELS: Record<string, string> = {

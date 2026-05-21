@@ -19,6 +19,7 @@ def predict_minutes_to_free_adaptive(
     exercise: str | None,
     dwell_seconds: int,
     exercise_seconds: int,
+    total_exercise_seconds: int,
     total_rep_count: int,
     historical_dwell_seconds: list[int],
 ) -> int:
@@ -27,6 +28,7 @@ def predict_minutes_to_free_adaptive(
         exercise=exercise,
         dwell_seconds=dwell_seconds,
         exercise_seconds=exercise_seconds,
+        total_exercise_seconds=total_exercise_seconds,
         total_rep_count=total_rep_count,
         historical_dwell_seconds=historical_dwell_seconds,
     )

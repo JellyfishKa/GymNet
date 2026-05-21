@@ -17,7 +17,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-CLASSES = ["ResistanceBand", "PushUps", "Squats", "RunInPlace"]
+CLASSES = ["PushUps", "Squats", "RunInPlace"]
 LANDMARK_DIM = 33 * 3
 WINDOW = 13
 OUT_PATH = Path("ml/data/real/camera_real_test.jsonl")

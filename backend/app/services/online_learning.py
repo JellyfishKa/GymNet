@@ -12,7 +12,7 @@ PROFILE_PATH = Path(
         str(Path(__file__).resolve().parents[3] / "ml" / "experiments" / "online_profile.json"),
     )
 )
-REP_BASED_EXERCISES = {"PushUps", "Squats", "ResistanceBand"}
+from app.services.rep_exercise_metrics import estimate_dwell_at_completion, is_rep_based
 _lock = Lock()
 _profile: dict[str, dict[str, float]] | None = None
 
@@ -78,6 +78,7 @@ def predict_minutes_to_free_online(
     exercise: str | None,
     dwell_seconds: int,
     exercise_seconds: int,
+    total_exercise_seconds: int,
     total_rep_count: int,
     historical_dwell_seconds: list[int],
 ) -> int:
@@ -95,17 +96,24 @@ def predict_minutes_to_free_online(
         baseline = int(0.5 * baseline + 0.5 * row["mean_dwell_seconds"])
 
         mean_exercise_seconds = row.get("mean_total_exercise_seconds", 0.0)
-        if mean_exercise_seconds > 0:
-            expected_from_exercise_clock = dwell_seconds + max(0, int(mean_exercise_seconds - exercise_seconds))
-            baseline = int(0.6 * baseline + 0.4 * expected_from_exercise_clock)
-
         mean_reps = row.get("mean_total_rep_count", 0.0)
-        if exercise in REP_BASED_EXERCISES and mean_reps > 0 and exercise_seconds > 0 and total_rep_count >= 0:
-            rep_rate = total_rep_count / max(exercise_seconds, 1)
-            if rep_rate > 0:
-                remaining_reps = max(0.0, mean_reps - total_rep_count)
-                expected_from_reps = dwell_seconds + int(remaining_reps / rep_rate)
-                baseline = int(0.5 * baseline + 0.5 * expected_from_reps)
+
+        if is_rep_based(exercise):
+            rep_estimates = estimate_dwell_at_completion(
+                dwell_seconds=dwell_seconds,
+                total_exercise_seconds=total_exercise_seconds,
+                total_rep_count=total_rep_count,
+                mean_exercise_seconds=mean_exercise_seconds,
+                mean_rep_count=mean_reps,
+            )
+            if rep_estimates:
+                baseline = max(baseline, *rep_estimates)
+        else:
+            if mean_exercise_seconds > 0:
+                expected_from_exercise_clock = dwell_seconds + max(
+                    0, int(mean_exercise_seconds - exercise_seconds)
+                )
+                baseline = int(0.6 * baseline + 0.4 * expected_from_exercise_clock)
 
     remaining = max(0, baseline - dwell_seconds)
     return max(1, round(remaining / 60))

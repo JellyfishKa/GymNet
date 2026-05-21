@@ -30,6 +30,14 @@ export default function MlStatusCard({ status }: MlStatusCardProps) {
       <p>Последний результат: {lastResult}</p>
       <p>Модель доступна: {status.model_exists ? "да" : "нет"}</p>
       <p>
+        Классификация live:{" "}
+        {status.live_classification === "ml"
+          ? "ML (CNN-ResBiGRU)"
+          : status.live_classification === "heuristic"
+            ? "эвристики"
+            : "—"}
+      </p>
+      <p>
         Метрика synthetic macro-F1:{" "}
         {status.synthetic_macro_f1 !== null && status.synthetic_macro_f1 !== undefined
           ? status.synthetic_macro_f1.toFixed(3)

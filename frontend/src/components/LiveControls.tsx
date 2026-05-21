@@ -9,7 +9,7 @@ type LiveControlsProps = {
   onSend: (payload: LiveUpdatePayload) => void;
 };
 
-const EXERCISES = ["ResistanceBand", "PushUps", "Squats", "RunInPlace"] as const;
+const EXERCISES = ["PushUps", "Squats", "RunInPlace"] as const;
 const PHASES = ["Neutral", "TransitionDown", "Bottom", "TransitionUp", "Standing"] as const;
 
 export default function LiveControls({ zoneId, setZoneId, onSend }: LiveControlsProps) {

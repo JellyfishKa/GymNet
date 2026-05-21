@@ -14,7 +14,7 @@
 
 - `captured_at` — дата и время записи образца (UTC ISO-8601).
 - `source` — источник (`synthetic_train`, `synthetic_test`, `camera_real`).
-- `label` — класс упражнения (`ResistanceBand`, `PushUps`, `Squats`, `RunInPlace`).
+- `label` — класс упражнения (`PushUps`, `Squats`, `RunInPlace`).
 - `sequence` — массив формы `[13, 99]` (13 кадров, 33 точки по `x,y,z`).
 
 ## Использование дат
