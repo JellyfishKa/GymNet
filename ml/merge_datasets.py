@@ -12,7 +12,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dataset_io import read_jsonl
+from dataset_io import CLASS_TO_ID, read_jsonl
 
 ROOT = Path(__file__).resolve().parent
 SYNTHETIC_TRAIN = ROOT / "data" / "synthetic" / "train_synthetic.jsonl"
@@ -25,6 +25,10 @@ def _sequence_hash(row: dict) -> str:
     sequence = row.get("sequence")
     payload = json.dumps(sequence, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _filter_known_labels(rows: list[dict]) -> list[dict]:
+    return [row for row in rows if row.get("label") in CLASS_TO_ID]
 
 
 def _dedup_rows(rows: list[dict]) -> list[dict]:
@@ -47,8 +51,8 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
 
 
 def main() -> None:
-    synthetic_rows = read_jsonl(SYNTHETIC_TRAIN)
-    live_rows = _dedup_rows(read_jsonl(LIVE_TRAIN))
+    synthetic_rows = _filter_known_labels(read_jsonl(SYNTHETIC_TRAIN))
+    live_rows = _dedup_rows(_filter_known_labels(read_jsonl(LIVE_TRAIN)))
     combined = _dedup_rows(synthetic_rows + live_rows)
     _write_jsonl(OUT_PATH, combined)
 

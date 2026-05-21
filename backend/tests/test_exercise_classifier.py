@@ -39,7 +39,7 @@ def test_smoothing_majority_vote() -> None:
     }
     labels = []
     for _ in range(6):
-        exercise, source, _, _, _ = classify_exercise(zone_id, window=None, landmarks=landmarks)
+        exercise, source, _, _, _, _ = classify_exercise(zone_id, window=None, landmarks=landmarks)
         labels.append(exercise)
         assert source == "heuristic"
     assert labels[-1] == "Squats"

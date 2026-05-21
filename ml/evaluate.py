@@ -12,13 +12,13 @@ import numpy as np
 import torch
 from sklearn.metrics import accuracy_score, f1_score
 
-from dataset_io import CLASSES, load_dataset
-from models.cnn_resbigru import CnnResBiGRU
+from checkpoint_io import load_cnn_resbigru
+from dataset_io import load_dataset
 
 ROOT = Path(__file__).resolve().parent
 
 
-def _predict(model: CnnResBiGRU, x: np.ndarray) -> np.ndarray:
+def _predict(model, x: np.ndarray) -> np.ndarray:
     if len(x) == 0:
         return np.empty((0,), dtype=np.int64)
     with torch.no_grad():
@@ -50,9 +50,7 @@ def main() -> None:
     synthetic = load_dataset(synthetic_test_path)
     real = load_dataset(real_test_path)
 
-    model = CnnResBiGRU(in_features=99, num_classes=len(CLASSES))
-    model.load_state_dict(torch.load(model_path, map_location="cpu"))
-    model.eval()
+    model = load_cnn_resbigru(model_path)
 
     synthetic_pred = _predict(model, synthetic.x)
     real_pred = _predict(model, real.x)

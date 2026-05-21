@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter
 
-from app.services.exercise_classifier import ml_available
+from app.services.exercise_classifier import ml_available, ml_unavailable_reason
 
 router = APIRouter(prefix="/ml", tags=["ml"])
 logger = logging.getLogger(__name__)
@@ -67,7 +67,9 @@ def get_ml_status() -> dict:
         "autotrain": status,
         "live_train_samples": _line_count(live_train_path),
         "live_classification": "ml" if ml_available() else "heuristic",
+        "ml_unavailable_reason": ml_unavailable_reason(),
         "model_exists": model_path.exists(),
+        "autotrain_last_error": status.get("last_error"),
         "evaluated_at": eval_report.get("evaluated_at"),
         "synthetic_macro_f1": (eval_report.get("synthetic_metrics") or {}).get("macro_f1"),
         "real_macro_f1": (eval_report.get("real_metrics") or {}).get("macro_f1"),

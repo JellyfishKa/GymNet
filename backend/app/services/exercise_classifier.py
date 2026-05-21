@@ -20,6 +20,7 @@ NUM_CLASSES = 3
 
 _model: CnnResBiGRU | None = None
 _model_loaded = False
+_ml_unavailable_reason: str | None = None
 _prediction_buffers: dict[str, deque[str]] = defaultdict(lambda: deque(maxlen=SMOOTHING_WINDOW))
 
 
@@ -37,13 +38,19 @@ def _model_path() -> Path | None:
     return None
 
 
+def ml_unavailable_reason() -> str | None:
+    _load_model()
+    return _ml_unavailable_reason
+
+
 def _load_model() -> CnnResBiGRU | None:
-    global _model, _model_loaded
+    global _model, _model_loaded, _ml_unavailable_reason
     if _model_loaded:
         return _model
     _model_loaded = True
     path = _model_path()
     if path is None:
+        _ml_unavailable_reason = "файл модели не найден"
         logger.info("ML-модель не найдена, используются эвристики")
         return None
     try:
@@ -53,6 +60,7 @@ def _load_model() -> CnnResBiGRU | None:
         state = checkpoint.get("model_state", checkpoint)
         num_classes = int(checkpoint.get("num_classes", NUM_CLASSES))
         if num_classes != NUM_CLASSES:
+            _ml_unavailable_reason = f"модель на {num_classes} классов, ожидается {NUM_CLASSES}"
             logger.warning(
                 "Модель с %s классами несовместима с %s, эвристики",
                 num_classes,
@@ -63,9 +71,11 @@ def _load_model() -> CnnResBiGRU | None:
         model.load_state_dict(state)
         model.eval()
         _model = model
+        _ml_unavailable_reason = None
         logger.info("Загружена ML-модель: %s", path)
         return _model
-    except Exception:
+    except Exception as exc:
+        _ml_unavailable_reason = f"ошибка загрузки: {exc}"
         logger.exception("Не удалось загрузить ML-модель")
         return None
 
@@ -74,7 +84,7 @@ def ml_available() -> bool:
     return _load_model() is not None
 
 
-def _predict_ml(window: np.ndarray) -> tuple[str, float]:
+def _predict_ml_probs(window: np.ndarray) -> dict[str, float]:
     import torch
 
     model = _load_model()
@@ -84,9 +94,32 @@ def _predict_ml(window: np.ndarray) -> tuple[str, float]:
     with torch.no_grad():
         logits = model(tensor)
         probs = torch.softmax(logits, dim=1)[0]
-        idx = int(torch.argmax(probs).item())
-        confidence = float(probs[idx].item())
-    return EXERCISES[idx], confidence
+    return {EXERCISES[i]: float(probs[i].item()) for i in range(len(EXERCISES))}
+
+
+def _fuse_ml_and_heuristic(
+    ml_probs: dict[str, float],
+    heur_scores: dict[str, float],
+    landmarks: dict[str, tuple[float, float]],
+    window_list: list[list[float]] | None,
+) -> tuple[str, float, str]:
+    """Слияние ML + эвристики с общими pose-gates (те же правила, что у эвристик)."""
+    weight = float(os.environ.get("GYMNET_ML_FUSION_WEIGHT", "0.55"))
+    fused: dict[str, float] = {}
+    for name in EXERCISES:
+        fused[name] = weight * ml_probs.get(name, 0.0) + (1.0 - weight) * heur_scores.get(name, 0.0)
+    gated = apply_discrimination_gates(landmarks, fused, window=window_list)
+    ranked = sorted(gated.items(), key=lambda item: item[1], reverse=True)
+    label, score = ranked[0]
+    ml_label = max(ml_probs, key=ml_probs.get)
+    heur_label = max(heur_scores, key=heur_scores.get)
+    if label == ml_label and label != heur_label:
+        source = "ml"
+    elif label == heur_label and label != ml_label:
+        source = "heuristic_override"
+    else:
+        source = "ml"
+    return label, score, source
 
 
 def _point_in_roi(point: tuple[float, float] | None, roi_bounds: tuple[float, float, float, float]) -> bool:
@@ -97,14 +130,14 @@ def _point_in_roi(point: tuple[float, float] | None, roi_bounds: tuple[float, fl
     return x_min <= x <= x_max and y_min <= y <= y_max
 
 
-from app.services.exercise_profiles import classify_heuristic_detailed
+from app.services.exercise_profiles import apply_discrimination_gates, classify_heuristic_detailed
 
 
 def classify_heuristic(
     landmarks: dict[str, tuple[float, float]],
     window: list[list[float]] | None = None,
 ) -> str:
-    label, _, _ = classify_heuristic_detailed(landmarks, window)
+    label, _, _, _ = classify_heuristic_detailed(landmarks, window)
     return label
 
 
@@ -131,7 +164,7 @@ def classify_exercise(
     *,
     window: np.ndarray | list[list[float]] | None,
     landmarks: dict[str, tuple[float, float]],
-) -> tuple[str, str, float | None, dict[str, float], dict[str, float | None]]:
+) -> tuple[str, str, float | None, dict[str, float], dict[str, float | None], str]:
     """
     Возвращает (exercise, source, confidence, scores, debug_metrics).
     source: "ml" | "heuristic" | "heuristic_override"
@@ -141,34 +174,24 @@ def classify_exercise(
     if window_arr is not None:
         window_list = window_arr.tolist()
 
-    heur_label, scores, debug = classify_heuristic_detailed(landmarks, window_list)
+    heur_label, scores, debug, body_orientation = classify_heuristic_detailed(landmarks, window_list)
     raw_label = heur_label
     confidence: float | None = None
     source = "heuristic"
 
-    override_margin = float(os.environ.get("GYMNET_HEURISTIC_OVERRIDE_MARGIN", "0.22"))
     if window_arr is not None and _load_model() is not None:
         try:
-            ml_label, confidence = _predict_ml(window_arr)
-            raw_label = ml_label
-            source = "ml"
-            heur_best = scores.get(heur_label, 0.0)
-            ml_score = scores.get(ml_label, 0.0)
-            if (
-                heur_label != ml_label
-                and heur_best >= ml_score + override_margin
-                and heur_best >= 0.45
-            ):
-                raw_label = heur_label
-                source = "heuristic_override"
-                confidence = heur_best
+            ml_probs = _predict_ml_probs(window_arr)
+            raw_label, confidence, source = _fuse_ml_and_heuristic(
+                ml_probs, scores, landmarks, window_list
+            )
         except Exception:
             logger.exception("Ошибка ML-inference, fallback на эвристики")
 
     exercise = _smooth(zone_id, raw_label)
     if confidence is None and source.startswith("heuristic"):
         confidence = scores.get(exercise, scores.get(heur_label))
-    return exercise, source, confidence, scores, debug
+    return exercise, source, confidence, scores, debug, body_orientation
 
 
 def clear_classifier_state(zone_id: str) -> None:

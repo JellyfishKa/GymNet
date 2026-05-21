@@ -36,7 +36,7 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
     raw_present = in_roi and is_active
     is_present = update_zone_presence(payload.zone_id, raw_present)
 
-    exercise, classification_source, confidence, class_scores, pose_debug = classify_exercise(
+    exercise, classification_source, confidence, class_scores, pose_debug, body_orientation = classify_exercise(
         payload.zone_id,
         window=window,
         landmarks=named_points,
@@ -90,6 +90,7 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
         classification_source=classification_source,
         detected_exercise_confidence=confidence,
         classification_scores=class_scores,
+        body_orientation=body_orientation,
         pose_debug=pose_debug,
         supported_exercises=live_result.get("supported_exercises", ["PushUps", "Squats", "RunInPlace"]),
     )

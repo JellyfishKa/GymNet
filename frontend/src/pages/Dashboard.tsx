@@ -96,6 +96,7 @@ export default function Dashboard() {
         classificationSource={lastMessage.classification_source}
         exerciseConfidence={lastMessage.detected_exercise_confidence}
         classificationScores={lastMessage.classification_scores}
+        bodyOrientation={lastMessage.body_orientation}
         poseDebug={lastMessage.pose_debug}
       />
       <CameraControls zoneId={zoneId} setZoneId={setZoneId} onZoneUpdate={handleZoneUpdate} />

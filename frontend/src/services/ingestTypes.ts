@@ -27,6 +27,7 @@ export type PoseIngestResponse = {
   classification_source?: string | null;
   detected_exercise_confidence?: number | null;
   classification_scores?: Record<string, number> | null;
+  body_orientation?: string | null;
   pose_debug?: Record<string, number | null> | null;
   supported_exercises?: string[];
 };

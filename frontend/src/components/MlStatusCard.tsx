@@ -28,6 +28,9 @@ export default function MlStatusCard({ status }: MlStatusCardProps) {
       <p>Успешных retrain: {runsSuccess}</p>
       <p>Неудачных retrain: {runsFailed}</p>
       <p>Последний результат: {lastResult}</p>
+      {lastResult === "failed" && status.autotrain_last_error ? (
+        <p className="hint">Ошибка retrain: {status.autotrain_last_error}</p>
+      ) : null}
       <p>Модель доступна: {status.model_exists ? "да" : "нет"}</p>
       <p>
         Классификация live:{" "}
@@ -37,6 +40,9 @@ export default function MlStatusCard({ status }: MlStatusCardProps) {
             ? "эвристики"
             : "—"}
       </p>
+      {status.live_classification !== "ml" && status.ml_unavailable_reason ? (
+        <p className="hint">Почему не ML: {status.ml_unavailable_reason}</p>
+      ) : null}
       <p>
         Метрика synthetic macro-F1:{" "}
         {status.synthetic_macro_f1 !== null && status.synthetic_macro_f1 !== undefined
@@ -50,6 +56,9 @@ export default function MlStatusCard({ status }: MlStatusCardProps) {
           : "—"}
       </p>
       <p>Последняя оценка: {status.evaluated_at ?? "—"}</p>
+      {autotrain.last_retrain_at ? (
+        <p className="hint">Последний успешный retrain: {String(autotrain.last_retrain_at)}</p>
+      ) : null}
     </section>
   );
 }

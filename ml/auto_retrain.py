@@ -33,6 +33,8 @@ MIN_NEW_TRAIN_SAMPLES = int(os.getenv("GYMNET_AUTORETRAIN_MIN_NEW_TRAIN_SAMPLES"
 COOLDOWN_SECONDS = int(os.getenv("GYMNET_AUTORETRAIN_COOLDOWN_SECONDS", "900"))
 POLL_SECONDS = int(os.getenv("GYMNET_AUTORETRAIN_POLL_SECONDS", "20"))
 MAX_ALLOWED_DROP = float(os.getenv("GYMNET_AUTORETRAIN_MAX_F1_DROP", "0.02"))
+FAIL_BACKOFF_BASE_SECONDS = int(os.getenv("GYMNET_AUTORETRAIN_FAIL_BACKOFF_SECONDS", "300"))
+FAIL_BACKOFF_MAX_SECONDS = int(os.getenv("GYMNET_AUTORETRAIN_FAIL_BACKOFF_MAX_SECONDS", "3600"))
 
 
 def _utc_now() -> str:
@@ -152,6 +154,7 @@ def main() -> None:
     state.setdefault("last_retrain_at", None)
     state.setdefault("runs_success", 0)
     state.setdefault("runs_failed", 0)
+    state.setdefault("retry_not_before", 0.0)
 
     print(
         f"Auto-retrain watcher стартовал: min_train={MIN_NEW_TRAIN_SAMPLES}, "
@@ -173,9 +176,11 @@ def main() -> None:
                 datetime.fromisoformat(last_retrain_raw).timestamp() if isinstance(last_retrain_raw, str) else 0.0
             )
             cooldown_passed = (time.time() - last_retrain_ts) >= COOLDOWN_SECONDS
+            retry_not_before = float(state.get("retry_not_before") or 0.0)
+            backoff_passed = time.time() >= retry_not_before
 
             # Основной триггер — новые live_train окна; sessions — запасной.
-            should_retrain = cooldown_passed and (
+            should_retrain = cooldown_passed and backoff_passed and (
                 new_train_samples >= MIN_NEW_TRAIN_SAMPLES
                 or (new_train_samples > 0 and new_sessions >= MIN_NEW_SESSIONS)
             )
@@ -192,8 +197,15 @@ def main() -> None:
                     state["last_seen_sessions"] = current_sessions
                     state["last_seen_train_samples"] = current_train
                     state.pop("last_error", None)
+                    state["retry_not_before"] = 0.0
                 else:
-                    state["runs_failed"] = int(state.get("runs_failed", 0)) + 1
+                    failed = int(state.get("runs_failed", 0)) + 1
+                    state["runs_failed"] = failed
+                    backoff = min(
+                        FAIL_BACKOFF_BASE_SECONDS * failed,
+                        FAIL_BACKOFF_MAX_SECONDS,
+                    )
+                    state["retry_not_before"] = time.time() + backoff
                 state["last_result"] = "success" if ok else "failed"
                 state["last_details"] = details
 

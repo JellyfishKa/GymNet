@@ -9,23 +9,88 @@ import numpy as np
 from dataset_io import CLASSES
 
 RNG = np.random.default_rng(42)
+WINDOW = 13
+FEATURE_DIM = 99
+
+# Индексы MediaPipe в плоском векторе [x,y,z] * 33
+_IDX = {
+    "left_shoulder": 11,
+    "right_shoulder": 12,
+    "left_elbow": 13,
+    "right_elbow": 14,
+    "left_wrist": 15,
+    "right_wrist": 16,
+    "left_hip": 23,
+    "right_hip": 24,
+    "left_knee": 25,
+    "right_knee": 26,
+    "left_ankle": 27,
+    "right_ankle": 28,
+}
+
+
+def _set_xy(frame: np.ndarray, name: str, x: float, y: float) -> None:
+    i = _IDX[name] * 3
+    frame[i] = x
+    frame[i + 1] = y
 
 
 def _base_pattern(label: str) -> np.ndarray:
-    t = np.linspace(0.0, 1.0, 13, dtype=np.float32)
-    pattern = np.zeros((13, 99), dtype=np.float32)
+    """Анатомически различимые паттерны под 3 класса (не одинаковый sin на все 99)."""
+    t = np.linspace(0.0, 1.0, WINDOW, dtype=np.float32)
+    pattern = np.full((WINDOW, FEATURE_DIM), 0.5, dtype=np.float32)
+
     if label == "PushUps":
-        pattern[:, :] = 0.5 + 0.25 * np.sin(4 * np.pi * t)[:, None]
+        for k, phase in enumerate(t):
+            elbow_y = 0.52 + 0.12 * np.sin(4 * np.pi * phase)
+            wrist_y = elbow_y + 0.06
+            _set_xy(pattern[k], "left_shoulder", 0.35, 0.50)
+            _set_xy(pattern[k], "right_shoulder", 0.65, 0.50)
+            _set_xy(pattern[k], "left_hip", 0.40, 0.54)
+            _set_xy(pattern[k], "right_hip", 0.60, 0.54)
+            _set_xy(pattern[k], "left_elbow", 0.36, elbow_y)
+            _set_xy(pattern[k], "right_elbow", 0.64, elbow_y)
+            _set_xy(pattern[k], "left_wrist", 0.37, wrist_y)
+            _set_xy(pattern[k], "right_wrist", 0.63, wrist_y)
+            _set_xy(pattern[k], "left_knee", 0.45, 0.68)
+            _set_xy(pattern[k], "right_knee", 0.55, 0.68)
+
     elif label == "Squats":
-        pattern[:, :] = 0.55 + 0.3 * np.abs(np.sin(2 * np.pi * t))[:, None]
+        for k, phase in enumerate(t):
+            knee_y = 0.50 + 0.14 * (1.0 - np.cos(2 * np.pi * phase)) * 0.5
+            _set_xy(pattern[k], "left_shoulder", 0.50, 0.30)
+            _set_xy(pattern[k], "right_shoulder", 0.50, 0.30)
+            _set_xy(pattern[k], "left_hip", 0.50, 0.44)
+            _set_xy(pattern[k], "right_hip", 0.50, 0.44)
+            _set_xy(pattern[k], "left_knee", 0.56, knee_y)
+            _set_xy(pattern[k], "right_knee", 0.44, knee_y)
+            _set_xy(pattern[k], "left_ankle", 0.50, 0.72)
+            _set_xy(pattern[k], "right_ankle", 0.50, 0.72)
+            _set_xy(pattern[k], "left_elbow", 0.48, 0.38)
+            _set_xy(pattern[k], "right_elbow", 0.52, 0.38)
+
     elif label == "RunInPlace":
-        pattern[:, :] = 0.45 + 0.2 * np.sin(8 * np.pi * t)[:, None]
+        for k, phase in enumerate(t):
+            step = np.sin(8 * np.pi * phase)
+            left_ankle_y = 0.72 + 0.05 * step
+            right_ankle_y = 0.72 - 0.05 * step
+            _set_xy(pattern[k], "left_shoulder", 0.48, 0.28)
+            _set_xy(pattern[k], "right_shoulder", 0.52, 0.28)
+            _set_xy(pattern[k], "left_hip", 0.48, 0.42)
+            _set_xy(pattern[k], "right_hip", 0.52, 0.42)
+            _set_xy(pattern[k], "left_knee", 0.50, 0.56)
+            _set_xy(pattern[k], "right_knee", 0.50, 0.56)
+            _set_xy(pattern[k], "left_ankle", 0.48, left_ankle_y)
+            _set_xy(pattern[k], "right_ankle", 0.52, right_ankle_y)
+            _set_xy(pattern[k], "left_elbow", 0.47, 0.36)
+            _set_xy(pattern[k], "right_elbow", 0.53, 0.36)
+
     return np.clip(pattern, 0.0, 1.0)
 
 
 def _make_sample(label: str, source: str) -> dict:
     base = _base_pattern(label)
-    noise = RNG.normal(0.0, 0.03, size=(13, 99)).astype(np.float32)
+    noise = RNG.normal(0.0, 0.02, size=(WINDOW, FEATURE_DIM)).astype(np.float32)
     sequence = np.clip(base + noise, 0.0, 1.0)
     return {
         "captured_at": datetime.now(timezone.utc).isoformat(),

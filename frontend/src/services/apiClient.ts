@@ -24,12 +24,15 @@ export type AutotrainStatus = {
   pending_sessions?: number;
   last_error?: string;
   last_details?: string;
+  last_retrain_at?: string | null;
 };
 
 export type MlStatusResponse = {
   autotrain: AutotrainStatus;
+  autotrain_last_error?: string | null;
   live_train_samples: number;
   live_classification?: "ml" | "heuristic";
+  ml_unavailable_reason?: string | null;
   model_exists: boolean;
   evaluated_at?: string | null;
   synthetic_macro_f1?: number | null;

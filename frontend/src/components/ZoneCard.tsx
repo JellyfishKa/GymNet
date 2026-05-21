@@ -20,7 +20,14 @@ type ZoneCardProps = {
   classificationSource?: string | null;
   exerciseConfidence?: number | null;
   classificationScores?: Record<string, number> | null;
+  bodyOrientation?: string | null;
   poseDebug?: Record<string, number | null> | null;
+};
+
+const ORIENTATION_LABELS: Record<string, string> = {
+  frontal: "в лицо",
+  left_profile: "боком (левый профиль)",
+  right_profile: "боком (правый профиль)",
 };
 
 export default function ZoneCard(props: ZoneCardProps) {
@@ -78,6 +85,9 @@ export default function ZoneCard(props: ZoneCardProps) {
       {(props.classificationScores || props.poseDebug) && (
         <details>
           <summary>Отладка распознавания (для настройки)</summary>
+          {props.bodyOrientation && (
+            <p>Ракурс: {ORIENTATION_LABELS[props.bodyOrientation] ?? props.bodyOrientation}</p>
+          )}
           {props.classificationScores && (
             <p>
               Оценки классов:{" "}
@@ -89,9 +99,10 @@ export default function ZoneCard(props: ZoneCardProps) {
           {props.poseDebug && (
             <ul className="debug-list">
               {props.poseDebug.torso_vertical_span != null && (
-                <li>
-                  Вертикаль корпуса (меньше → отжимания): {props.poseDebug.torso_vertical_span}
-                </li>
+                <li>Вертикаль корпуса (приседания): {props.poseDebug.torso_vertical_span}</li>
+              )}
+              {props.poseDebug.torso_horizontal_span != null && (
+                <li>Горизонталь корпуса (отжимания): {props.poseDebug.torso_horizontal_span}</li>
               )}
               {props.poseDebug.elbow_angle != null && (
                 <li>Угол локтя: {props.poseDebug.elbow_angle}°</li>

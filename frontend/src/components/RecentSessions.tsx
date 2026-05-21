@@ -10,9 +10,13 @@ type RecentSessionsProps = {
 export default function RecentSessions({ sessions }: RecentSessionsProps) {
   return (
     <section className="card">
-      <h2>Последние сессии зоны</h2>
+      <h2>История сессий зоны</h2>
+      <p className="hint">
+        Сессии сохраняются автоматически при выходе человека из зоны (ingest). Здесь только просмотр
+        истории, ручное сохранение не требуется.
+      </p>
       {sessions.length === 0 ? (
-        <p>Пока нет сохраненных сессий.</p>
+        <p>Пока нет завершённых сессий в БД.</p>
       ) : (
         <table>
           <thead>
