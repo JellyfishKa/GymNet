@@ -3,12 +3,16 @@
 Полноценный сценарий обучения остается в ноутбуке 02.
 """
 
+import argparse
 import json
+import os
+import random
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -16,27 +20,47 @@ from torch.utils.data import DataLoader, TensorDataset
 from dataset_io import CLASSES, load_dataset
 from models.cnn_resbigru import CnnResBiGRU
 
+ROOT = Path(__file__).resolve().parent
+
+
+def _maybe_seed() -> None:
+    seed_raw = os.getenv("GYMNET_TRAIN_SEED")
+    if not seed_raw:
+        return
+    seed = int(seed_raw)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
 
 def main() -> None:
-    model_path = Path("experiments/best_model.pt")
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path = Path("experiments/train_report.json")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--skip-merge", action="store_true", help="Не вызывать merge_datasets.py повторно")
+    args = parser.parse_args()
 
-    combined_path = Path("data/combined/train_combined.jsonl")
-    synthetic_path = Path("data/synthetic/train_synthetic.jsonl")
+    _maybe_seed()
+
+    model_path = ROOT / "experiments" / "best_model.pt"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path = ROOT / "experiments" / "train_report.json"
+
+    combined_path = ROOT / "data" / "combined" / "train_combined.jsonl"
+    synthetic_path = ROOT / "data" / "synthetic" / "train_synthetic.jsonl"
     if not synthetic_path.exists():
         raise FileNotFoundError(
             "Не найден data/synthetic/train_synthetic.jsonl. "
             "Сначала запустите: python generate_synthetic_dataset.py"
         )
 
-    merge_script = Path(__file__).resolve().parent / "merge_datasets.py"
-    subprocess.run([sys.executable, str(merge_script)], check=True)
+    if not args.skip_merge:
+        subprocess.run([sys.executable, str(ROOT / "merge_datasets.py")], cwd=str(ROOT), check=True)
     train_dataset_path = combined_path if combined_path.exists() else synthetic_path
 
     bundle = load_dataset(train_dataset_path)
     if len(bundle.x) == 0:
-        raise ValueError("Синтетический train-датасет пустой")
+        raise ValueError("Train-датасет пустой")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Выбранное устройство обучения: {device}")
@@ -67,16 +91,15 @@ def main() -> None:
 
     torch.save(model.state_dict(), model_path)
     print(f"Модель сохранена: {model_path}")
-    print(f"Дата обучения (синтетика): {trained_at}")
 
     report = {
         "trained_at": trained_at,
-        "train_dataset": str(train_dataset_path),
-        "synthetic_dataset": str(synthetic_path),
+        "train_dataset": str(train_dataset_path.relative_to(ROOT)),
+        "synthetic_dataset": str(synthetic_path.relative_to(ROOT)),
         "train_samples": int(len(bundle.x)),
         "classes": CLASSES,
         "epoch_losses": epoch_losses,
-        "model_path": str(model_path),
+        "model_path": str(model_path.relative_to(ROOT)),
     }
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Отчет обучения сохранен: {report_path}")

@@ -10,9 +10,7 @@
 - В интерфейсе есть кнопки `Включить камеру` / `Выключить камеру` для live-потока с браузерной камеры.
 - ML: notebook-first пайплайн в `ml/notebooks`.
 - Infra: запуск в контейнерах `postgres + backend + frontend + ml-autotrain` через Docker Compose.
-- ML-конвейер автоматически выполняется контейнером `ml-pipeline` при обычном `docker compose up`.
-- ML-конвейер автоматически выбирает `GPU`, если доступен, иначе запускается на `CPU`.
-- В `docker-compose` для `ml-pipeline` включен `gpus: all`, чтобы CUDA была доступна внутри контейнера.
+- ML-конвейер `generate -> train -> eval` доступен через профиль `ml` (сервис `ml-pipeline`).
 - Персист завершенных сессий в БД (`zone_sessions`).
 
 ## Быстрый старт (Docker)
@@ -24,9 +22,9 @@
 - без запуска ML-конвейера: `powershell -ExecutionPolicy Bypass -File scripts/start_stack.ps1 -NoML`
 
 Скрипт автоматически:
-- поднимает `postgres + backend + frontend`,
-- проверяет доступность NVIDIA runtime,
-- запускает `ml-pipeline-gpu` при наличии GPU, иначе `ml-pipeline`.
+- поднимает `postgres + backend + frontend + ml-autotrain`,
+- при `-NoML` не запускает одноразовый ML-pipeline,
+- иначе выполняет `ml-pipeline` через профиль `ml`.
 
 1. Собрать и запустить контейнеры:
    - `docker compose -f infra/docker-compose.yml up --build -d`
@@ -34,12 +32,12 @@
    - `http://localhost:8080`
 3. Проверить API:
    - `http://localhost:8000/api/health`
-4. Проверить статус ML-конвейера:
-   - `docker compose -f infra/docker-compose.yml logs ml-pipeline`
-5. Проверить авто-retrain (фоновый сервис):
+4. Проверить авто-retrain (фоновый сервис):
    - `docker compose -f infra/docker-compose.yml logs ml-autotrain`
    - статус в UI: блок `ML: автообучение` на дашборде
    - API: `http://localhost:8000/api/ml/status`
+5. (Опционально) Запустить полный ML-конвейер:
+   - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-pipeline`
 6. Остановить окружение:
    - `docker compose -f infra/docker-compose.yml down`
 
@@ -75,9 +73,6 @@
 
 ## ML в Docker
 
-По умолчанию ML-конвейер `generate -> train -> eval` запускается автоматически сервисом `ml-pipeline`.
-При наличии доступного CUDA-устройства будет выбран GPU, иначе выполнение продолжится на CPU.
-
 Для ручных сценариев и ноутбука используйте профиль `ml`:
 
 - Сгенерировать синтетический датасет:
@@ -89,7 +84,7 @@
 - Запустить быструю оценку:
   - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-eval`
 - Повторно запустить полный конвейер одной командой:
-  - `docker compose -f infra/docker-compose.yml run --rm ml-pipeline`
+  - `docker compose -f infra/docker-compose.yml --profile ml run --rm ml-pipeline`
 
 ## Датасеты и даты экспериментов
 

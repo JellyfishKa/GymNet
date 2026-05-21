@@ -13,11 +13,22 @@ export type SessionResponse = {
   recent_sessions: RecentSession[];
 };
 
+export type AutotrainStatus = {
+  last_result?: string;
+  last_retrain_at?: string | null;
+  runs?: number;
+  runs_success?: number;
+  runs_failed?: number;
+  pending_train_samples?: number;
+  pending_sessions?: number;
+  last_error?: string;
+  last_details?: string;
+};
+
 export type MlStatusResponse = {
-  autotrain: Record<string, unknown>;
+  autotrain: AutotrainStatus;
   live_train_samples: number;
   model_exists: boolean;
-  model_path: string;
   evaluated_at?: string | null;
   synthetic_macro_f1?: number | null;
   real_macro_f1?: number | null;

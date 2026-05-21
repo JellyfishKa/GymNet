@@ -1,17 +1,33 @@
 import json
+import logging
 import os
 from pathlib import Path
 
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/ml", tags=["ml"])
+logger = logging.getLogger(__name__)
 
 
 def _line_count(path: Path) -> int:
     if not path.exists():
         return 0
-    with path.open("r", encoding="utf-8") as f:
-        return sum(1 for _ in f)
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return sum(1 for _ in f)
+    except OSError:
+        logger.exception("Не удалось прочитать файл: %s", path.name)
+        return 0
+
+
+def _read_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.exception("Не удалось разобрать JSON: %s", path.name)
+        return {}
 
 
 @router.get("/status")
@@ -42,19 +58,13 @@ def get_ml_status() -> dict:
         )
     )
 
-    status = {}
-    if status_path.exists():
-        status = json.loads(status_path.read_text(encoding="utf-8"))
-
-    eval_report: dict = {}
-    if eval_path.exists():
-        eval_report = json.loads(eval_path.read_text(encoding="utf-8"))
+    status = _read_json(status_path)
+    eval_report = _read_json(eval_path)
 
     return {
         "autotrain": status,
         "live_train_samples": _line_count(live_train_path),
         "model_exists": model_path.exists(),
-        "model_path": str(model_path),
         "evaluated_at": eval_report.get("evaluated_at"),
         "synthetic_macro_f1": (eval_report.get("synthetic_metrics") or {}).get("macro_f1"),
         "real_macro_f1": (eval_report.get("real_metrics") or {}).get("macro_f1"),

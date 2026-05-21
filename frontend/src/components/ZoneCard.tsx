@@ -1,8 +1,9 @@
+import type { ZoneStatePayload } from "../services/wsClient";
 import { exerciseLabel, phaseLabel, statusLabel } from "../utils/labels";
 
 type ZoneCardProps = {
   zoneId: string;
-  status: string;
+  status: ZoneStatePayload["status"];
   dwellSeconds: number;
   exercise: string | null;
   exerciseSeconds: number;

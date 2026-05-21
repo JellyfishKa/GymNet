@@ -1,7 +1,11 @@
+from typing import cast
+
 from fastapi import APIRouter
 
 from app.schemas.ingest import PoseIngestRequest, PoseIngestResponse
+from app.schemas.live import ExerciseName, LiveUpdateRequest, PhaseName
 from app.services.landmark_sequence import get_ready_window, push_landmark_frame
+from app.services.live_update import apply_live_update
 from app.services.pose_pipeline import (
     RoiRect,
     classify_exercise,
@@ -41,10 +45,26 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
                     window=window,
                 )
 
+    live_result = apply_live_update(
+        LiveUpdateRequest(
+            zone_id=payload.zone_id,
+            is_present=is_present,
+            exercise=cast(ExerciseName, exercise),
+            phase=cast(PhaseName, phase),
+            form_penalty=penalty,
+        )
+    )
+    zone = live_result["zone"]
+
     return PoseIngestResponse(
         zone_id=payload.zone_id,
         is_present=is_present,
         exercise=exercise,
         phase=phase,
         form_penalty=penalty,
+        minutes_to_free=live_result.get("minutes_to_free"),
+        sadla_phase=live_result.get("sadla_phase"),
+        zone_status=zone.get("status"),
+        dwell_seconds=zone.get("dwell_seconds"),
+        rep_count=zone.get("rep_count"),
     )

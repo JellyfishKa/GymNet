@@ -18,9 +18,13 @@ class DatasetBundle:
 
 
 def _sample_to_array(sample: dict) -> np.ndarray:
+    label = sample.get("label")
+    if label not in CLASS_TO_ID:
+        raise ValueError(f"Неизвестная метка: {label!r}, ожидается одна из {CLASSES}")
+
     sequence = np.asarray(sample["sequence"], dtype=np.float32)
-    if sequence.shape != (13, 99):
-        raise ValueError("Ожидается sequence формы [13, 99]")
+    if sequence.ndim != 2 or sequence.shape != (13, 99):
+        raise ValueError(f"Ожидается sequence формы (13, 99), получено {sequence.shape}")
     return sequence
 
 

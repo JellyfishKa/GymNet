@@ -1,8 +1,8 @@
 """
 Фоновый авто-retrain:
-- мониторит новые завершенные сессии (live_sessions.jsonl)
+- мониторит live_train.jsonl (основной триггер) и live_sessions.jsonl
 - запускает train.py + evaluate.py по порогу новых сэмплов
-- применяет safe-switch: откат модели при ошибке/просадке метрики
+- cooldown только после успешного retrain
 """
 
 from __future__ import annotations
@@ -65,9 +65,9 @@ def _run_step(title: str, cmd: list[str]) -> None:
     subprocess.run(cmd, cwd=str(ROOT), check=True)
 
 
-def _synthetic_f1(path: Path) -> float | None:
+def _metric_f1(path: Path, key: str) -> float | None:
     payload = _read_json(path)
-    metrics = payload.get("synthetic_metrics") if isinstance(payload, dict) else None
+    metrics = payload.get(key) if isinstance(payload, dict) else None
     if not isinstance(metrics, dict):
         return None
     value = metrics.get("macro_f1")
@@ -79,7 +79,10 @@ def _safe_retrain(py: str, state: dict) -> tuple[bool, str]:
     eval_backup = EVAL_REPORT_PATH.with_suffix(".json.bak")
     train_backup = TRAIN_REPORT_PATH.with_suffix(".json.bak")
 
-    prev_f1 = _synthetic_f1(EVAL_REPORT_PATH)
+    prev_synthetic_f1 = _metric_f1(EVAL_REPORT_PATH, "synthetic_metrics")
+    prev_real_f1 = _metric_f1(EVAL_REPORT_PATH, "real_metrics")
+    prev_real_samples = int((_read_json(EVAL_REPORT_PATH).get("real_metrics") or {}).get("samples") or 0)
+
     if MODEL_PATH.exists():
         shutil.copy2(MODEL_PATH, model_backup)
     if EVAL_REPORT_PATH.exists():
@@ -89,13 +92,32 @@ def _safe_retrain(py: str, state: dict) -> tuple[bool, str]:
 
     try:
         _run_step("Auto-retrain: merge datasets", [py, "merge_datasets.py"])
-        _run_step("Auto-retrain: train", [py, "train.py"])
+        _run_step("Auto-retrain: train", [py, "train.py", "--skip-merge"])
         _run_step("Auto-retrain: evaluate", [py, "evaluate.py"])
 
-        new_f1 = _synthetic_f1(EVAL_REPORT_PATH)
-        if prev_f1 is not None and new_f1 is not None and new_f1 < prev_f1 - MAX_ALLOWED_DROP:
+        new_synthetic_f1 = _metric_f1(EVAL_REPORT_PATH, "synthetic_metrics")
+        if (
+            prev_synthetic_f1 is not None
+            and new_synthetic_f1 is not None
+            and new_synthetic_f1 < prev_synthetic_f1 - MAX_ALLOWED_DROP
+        ):
             raise RuntimeError(
-                f"Откат: synthetic macro_f1 ухудшился ({prev_f1:.4f} -> {new_f1:.4f}, drop>{MAX_ALLOWED_DROP})"
+                f"Откат: synthetic macro_f1 ухудшился ({prev_synthetic_f1:.4f} -> {new_synthetic_f1:.4f})"
+            )
+
+        eval_payload = _read_json(EVAL_REPORT_PATH)
+        real_metrics = eval_payload.get("real_metrics") if isinstance(eval_payload, dict) else {}
+        real_samples = int((real_metrics or {}).get("samples") or 0)
+        new_real_f1 = _metric_f1(EVAL_REPORT_PATH, "real_metrics")
+        if (
+            prev_real_samples > 0
+            and real_samples > 0
+            and prev_real_f1 is not None
+            and new_real_f1 is not None
+            and new_real_f1 < prev_real_f1 - MAX_ALLOWED_DROP
+        ):
+            raise RuntimeError(
+                f"Откат: real macro_f1 ухудшился ({prev_real_f1:.4f} -> {new_real_f1:.4f})"
             )
 
         for backup in (model_backup, eval_backup, train_backup):
@@ -128,12 +150,12 @@ def main() -> None:
     state.setdefault("last_seen_sessions", 0)
     state.setdefault("last_seen_train_samples", 0)
     state.setdefault("last_retrain_at", None)
-    state.setdefault("runs", 0)
+    state.setdefault("runs_success", 0)
+    state.setdefault("runs_failed", 0)
 
     print(
-        f"Auto-retrain watcher стартовал: min_new={MIN_NEW_SESSIONS}, "
-        f"cooldown={COOLDOWN_SECONDS}s, poll={POLL_SECONDS}s, "
-        f"live_sessions={LIVE_SESSIONS_PATH}, live_train={LIVE_TRAIN_PATH}"
+        f"Auto-retrain watcher стартовал: min_train={MIN_NEW_TRAIN_SAMPLES}, "
+        f"min_sessions={MIN_NEW_SESSIONS}, cooldown={COOLDOWN_SECONDS}s"
     )
 
     while True:
@@ -152,9 +174,11 @@ def main() -> None:
             )
             cooldown_passed = (time.time() - last_retrain_ts) >= COOLDOWN_SECONDS
 
-            should_retrain = (
-                new_train_samples >= MIN_NEW_TRAIN_SAMPLES or new_sessions >= MIN_NEW_SESSIONS
-            ) and cooldown_passed
+            # Основной триггер — новые live_train окна; sessions — запасной.
+            should_retrain = cooldown_passed and (
+                new_train_samples >= MIN_NEW_TRAIN_SAMPLES
+                or (new_train_samples > 0 and new_sessions >= MIN_NEW_SESSIONS)
+            )
 
             if should_retrain:
                 print(
@@ -162,14 +186,16 @@ def main() -> None:
                     f"sessions={new_sessions}"
                 )
                 ok, details = _safe_retrain(py, state)
-                state["runs"] = int(state.get("runs", 0)) + 1
-                state["last_retrain_at"] = _utc_now()
-                state["last_result"] = "success" if ok else "failed"
-                state["last_details"] = details
                 if ok:
+                    state["runs_success"] = int(state.get("runs_success", 0)) + 1
+                    state["last_retrain_at"] = _utc_now()
                     state["last_seen_sessions"] = current_sessions
                     state["last_seen_train_samples"] = current_train
                     state.pop("last_error", None)
+                else:
+                    state["runs_failed"] = int(state.get("runs_failed", 0)) + 1
+                state["last_result"] = "success" if ok else "failed"
+                state["last_details"] = details
 
             state["current_seen_sessions"] = current_sessions
             state["current_seen_train_samples"] = current_train

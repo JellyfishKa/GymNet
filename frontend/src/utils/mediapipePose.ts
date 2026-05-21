@@ -34,12 +34,16 @@ export function loadMediaPipePose(): Promise<void> {
     script.crossOrigin = "anonymous";
     script.onload = () => {
       if (typeof window.Pose !== "function") {
+        loadPromise = null;
         reject(new Error("MediaPipe Pose не зарегистрировал window.Pose"));
         return;
       }
       resolve();
     };
-    script.onerror = () => reject(new Error("Не удалось загрузить MediaPipe Pose с CDN"));
+    script.onerror = () => {
+      loadPromise = null;
+      reject(new Error("Не удалось загрузить MediaPipe Pose с CDN"));
+    };
     document.head.appendChild(script);
   });
 

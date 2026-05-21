@@ -17,14 +17,16 @@ export default function MlStatusCard({ status }: MlStatusCardProps) {
   const autotrain = status.autotrain ?? {};
   const pendingTrain = Number(autotrain.pending_train_samples ?? 0);
   const lastResult = String(autotrain.last_result ?? "ожидание");
-  const runs = Number(autotrain.runs ?? 0);
+  const runsSuccess = Number(autotrain.runs_success ?? autotrain.runs ?? 0);
+  const runsFailed = Number(autotrain.runs_failed ?? 0);
 
   return (
     <section className="card">
       <h2>ML: автообучение</h2>
       <p>Live-образцов для дообучения: {status.live_train_samples}</p>
       <p>Новых образцов до retrain: {pendingTrain}</p>
-      <p>Запусков retrain: {runs}</p>
+      <p>Успешных retrain: {runsSuccess}</p>
+      <p>Неудачных retrain: {runsFailed}</p>
       <p>Последний результат: {lastResult}</p>
       <p>Модель доступна: {status.model_exists ? "да" : "нет"}</p>
       <p>

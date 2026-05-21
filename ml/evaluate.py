@@ -4,6 +4,7 @@
 """
 
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from sklearn.metrics import accuracy_score, f1_score
 
 from dataset_io import CLASSES, load_dataset
 from models.cnn_resbigru import CnnResBiGRU
+
+ROOT = Path(__file__).resolve().parent
 
 
 def _predict(model: CnnResBiGRU, x: np.ndarray) -> np.ndarray:
@@ -35,14 +38,14 @@ def _metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 
 def main() -> None:
-    model_path = Path("experiments/best_model.pt")
-    report_path = Path("experiments/eval_report.json")
+    model_path = ROOT / "experiments" / "best_model.pt"
+    report_path = ROOT / "experiments" / "eval_report.json"
     if not model_path.exists():
         print("Модель не найдена, сначала запустите train.py")
-        return
+        sys.exit(1)
 
-    synthetic_test_path = Path("data/synthetic/test_synthetic.jsonl")
-    real_test_path = Path("data/real/camera_real_test.jsonl")
+    synthetic_test_path = ROOT / "data" / "synthetic" / "test_synthetic.jsonl"
+    real_test_path = ROOT / "data" / "real" / "camera_real_test.jsonl"
 
     synthetic = load_dataset(synthetic_test_path)
     real = load_dataset(real_test_path)
@@ -59,9 +62,9 @@ def main() -> None:
     evaluated_at = datetime.now(timezone.utc).isoformat()
     report = {
         "evaluated_at": evaluated_at,
-        "model_path": str(model_path),
-        "synthetic_test_dataset": str(synthetic_test_path),
-        "real_test_dataset": str(real_test_path),
+        "model_path": str(model_path.relative_to(ROOT)),
+        "synthetic_test_dataset": str(synthetic_test_path.relative_to(ROOT)),
+        "real_test_dataset": str(real_test_path.relative_to(ROOT)),
         "synthetic_metrics": synthetic_metrics,
         "real_metrics": real_metrics,
     }

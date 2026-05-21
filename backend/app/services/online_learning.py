@@ -1,8 +1,10 @@
 import json
+import logging
 import os
 from pathlib import Path
 from threading import Lock
 
+logger = logging.getLogger(__name__)
 
 PROFILE_PATH = Path(
     os.getenv(
@@ -21,7 +23,11 @@ def _load_profile() -> dict[str, dict[str, float]]:
         if _profile is not None:
             return _profile
         if PROFILE_PATH.exists():
-            _profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+            try:
+                _profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                logger.exception("Не удалось прочитать online-профиль")
+                _profile = {}
         else:
             _profile = {}
         return _profile

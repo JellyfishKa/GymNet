@@ -4,14 +4,15 @@ import type { LiveUpdatePayload } from "../services/wsClient";
 import { exerciseLabel, phaseLabel } from "../utils/labels";
 
 type LiveControlsProps = {
+  zoneId: string;
+  setZoneId: (value: string) => void;
   onSend: (payload: LiveUpdatePayload) => void;
 };
 
 const EXERCISES = ["ResistanceBand", "PushUps", "Squats", "RunInPlace"] as const;
 const PHASES = ["Neutral", "TransitionDown", "Bottom", "TransitionUp", "Standing"] as const;
 
-export default function LiveControls({ onSend }: LiveControlsProps) {
-  const [zoneId, setZoneId] = useState("treadmill_zone_1");
+export default function LiveControls({ zoneId, setZoneId, onSend }: LiveControlsProps) {
   const [isPresent, setIsPresent] = useState(true);
   const [exercise, setExercise] = useState<(typeof EXERCISES)[number]>("RunInPlace");
   const [phase, setPhase] = useState<(typeof PHASES)[number]>("Neutral");

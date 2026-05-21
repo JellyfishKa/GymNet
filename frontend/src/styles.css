@@ -22,6 +22,14 @@ body {
   gap: 10px;
 }
 
+.banner-warn {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #7c2d12;
+  border: 1px solid #ea580c;
+}
+
 input,
 select,
 button {

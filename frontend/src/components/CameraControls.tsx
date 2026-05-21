@@ -5,6 +5,8 @@ import { createPose, type MediaPipePose, type Results } from "../utils/mediapipe
 import type { LiveUpdatePayload } from "../services/wsClient";
 
 type CameraControlsProps = {
+  zoneId: string;
+  setZoneId: (value: string) => void;
   onLiveEvent: (payload: LiveUpdatePayload) => void;
 };
 
@@ -44,16 +46,16 @@ const LANDMARK_NAMES = [
   "right_foot_index",
 ] as const;
 
-export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
+export default function CameraControls({ zoneId, setZoneId, onLiveEvent }: CameraControlsProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const poseRef = useRef<MediaPipePose | null>(null);
   const rafRef = useRef<number | null>(null);
   const processingRef = useRef(false);
   const lastSentRef = useRef(0);
+  const sendInFlightRef = useRef(false);
 
   const [enabled, setEnabled] = useState(false);
-  const [zoneId, setZoneId] = useState("treadmill_zone_1");
   const [status, setStatus] = useState("Камера выключена");
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
@@ -110,13 +112,22 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
       return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
-      const timeout = window.setTimeout(() => {
+      let timeoutId: number | null = null;
+
+      const cleanup = () => {
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
+        }
+        video.removeEventListener("loadeddata", onReady);
+      };
+
+      timeoutId = window.setTimeout(() => {
+        cleanup();
         reject(new Error("Камера не успела подготовить видеопоток"));
       }, 5000);
 
       const onReady = () => {
-        window.clearTimeout(timeout);
-        video.removeEventListener("loadeddata", onReady);
+        cleanup();
         resolve();
       };
 
@@ -126,10 +137,12 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
 
   const onResults = async (results: Results) => {
     const now = Date.now();
-    if (now - lastSentRef.current < 200) {
+    if (now - lastSentRef.current < 200 || sendInFlightRef.current) {
+      scheduleNextFrame();
       return;
     }
     lastSentRef.current = now;
+    sendInFlightRef.current = true;
 
     const landmarks = results.poseLandmarks ?? [];
     const ingestPayload = {
@@ -150,6 +163,7 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
         body: JSON.stringify(ingestPayload),
       });
       if (!response.ok) {
+        scheduleNextFrame();
         return;
       }
       const event = (await response.json()) as LiveUpdatePayload;
@@ -157,6 +171,17 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
       setStatus(event.is_present ? "Камера активна: человек в зоне" : "Камера активна: зона свободна");
     } catch {
       setStatus("Ошибка отправки данных камеры");
+    } finally {
+      sendInFlightRef.current = false;
+      scheduleNextFrame();
+    }
+  };
+
+  const scheduleNextFrame = () => {
+    if (streamRef.current && poseRef.current) {
+      rafRef.current = window.requestAnimationFrame(() => {
+        void processFrame();
+      });
     }
   };
 
@@ -164,10 +189,8 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
     if (!videoRef.current || !poseRef.current) {
       return;
     }
-    if (processingRef.current) {
-      rafRef.current = window.requestAnimationFrame(() => {
-        void processFrame();
-      });
+    if (processingRef.current || sendInFlightRef.current) {
+      scheduleNextFrame();
       return;
     }
 
@@ -182,11 +205,6 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
       return;
     } finally {
       processingRef.current = false;
-      if (streamRef.current && poseRef.current) {
-        rafRef.current = window.requestAnimationFrame(() => {
-          void processFrame();
-        });
-      }
     }
   };
 
@@ -217,8 +235,6 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
         await videoRef.current.play();
         pushDebug("video.play() выполнен");
       } catch {
-        // Для некоторых браузеров play может вернуть reject,
-        // но поток при этом уже доступен и кадры читаются.
         pushDebug("video.play() rejected, продолжаю");
       }
 
@@ -240,9 +256,7 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
       setStatus("Камера включена");
       pushDebug("Камера активна, запускаю цикл кадров");
       await loadVideoDevices();
-      rafRef.current = window.requestAnimationFrame(() => {
-        void processFrame();
-      });
+      scheduleNextFrame();
     } catch (error) {
       const message = extractErrorMessage(error);
       // eslint-disable-next-line no-console
@@ -258,7 +272,7 @@ export default function CameraControls({ onLiveEvent }: CameraControlsProps) {
       try {
         await loadVideoDevices();
       } catch {
-        // Игнорируем ошибки на этапе первичного чтения списка устройств.
+        // Список устройств может быть пуст до первого getUserMedia.
       }
     };
     void initDevices();

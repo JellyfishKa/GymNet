@@ -18,7 +18,7 @@ class PoseIngestRequest(BaseModel):
     zone_id: str = "treadmill_zone_1"
     roi: RoiSchema
     treadmill_zone: bool = False
-    landmarks: list[LandmarkInput]
+    landmarks: list[LandmarkInput] = Field(default_factory=list, max_length=33)
 
 
 class PoseIngestResponse(BaseModel):
@@ -27,3 +27,8 @@ class PoseIngestResponse(BaseModel):
     exercise: str
     phase: str
     form_penalty: float
+    minutes_to_free: int | None = None
+    sadla_phase: str | None = None
+    zone_status: str | None = None
+    dwell_seconds: int | None = None
+    rep_count: int | None = None

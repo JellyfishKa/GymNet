@@ -6,5 +6,7 @@
   "current_seen_sessions": 0,
   "current_seen_train_samples": 0,
   "pending_sessions": 0,
-  "pending_train_samples": 0
+  "pending_train_samples": 0,
+  "runs_success": 0,
+  "runs_failed": 0
 }

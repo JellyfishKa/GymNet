@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import CameraControls from "../components/CameraControls";
 import LiveControls from "../components/LiveControls";
@@ -23,6 +23,8 @@ const initialZone = {
 } as const;
 
 export default function Dashboard() {
+  const [zoneId, setZoneId] = useState("treadmill_zone_1");
+  const [wsConnected, setWsConnected] = useState(false);
   const [sessions, setSessions] = useState<RecentSession[]>([]);
   const [mlStatus, setMlStatus] = useState<MlStatusResponse | null>(null);
   const [lastMessage, setLastMessage] = useState<ZoneResponse>({
@@ -31,28 +33,38 @@ export default function Dashboard() {
     minutes_to_free: 15,
     supported_exercises: ["ResistanceBand", "PushUps", "Squats", "RunInPlace"],
   });
+  const wsRef = useRef<LiveWsClient | null>(null);
 
-  const ws = useMemo(
-    () =>
-      new LiveWsClient(wsLiveUrl(), (message) => {
+  useEffect(() => {
+    const client = new LiveWsClient(wsLiveUrl(), {
+      onMessage: (message) => {
         setLastMessage(message);
-      }),
-    [],
-  );
+        setWsConnected(true);
+      },
+      onError: () => setWsConnected(false),
+      onClose: () => setWsConnected(false),
+    });
+    wsRef.current = client;
+
+    return () => {
+      client.close();
+      wsRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const data = await fetchRecentSessions(lastMessage.zone.zone_id);
+        const data = await fetchRecentSessions(zoneId);
         setSessions(data);
       } catch {
-        // Игнорируем кратковременную недоступность API на раннем этапе запуска.
+        // API может быть недоступен сразу после старта контейнеров.
       }
       try {
         const status = await fetchMlStatus();
         setMlStatus(status);
       } catch {
-        // ML-статус может быть недоступен до первого retrain.
+        // ML-статус появится после первого retrain.
       }
     };
     void loadData();
@@ -61,19 +73,20 @@ export default function Dashboard() {
     }, 5000);
 
     return () => {
-      // Браузер сам закрывает сокет при размонтировании.
-      // Явное закрытие здесь не требуется для текущего MVP.
       window.clearInterval(timer);
     };
-  }, [lastMessage.zone.zone_id]);
+  }, [zoneId]);
 
   const send = (payload: LiveUpdatePayload) => {
-    ws.send(payload);
+    wsRef.current?.send({ ...payload, zone_id: zoneId });
   };
 
   return (
     <main className="layout">
       <h1>GymNet: панель мониторинга в реальном времени</h1>
+      {!wsConnected && (
+        <p className="banner-warn">WebSocket отключён — идёт переподключение или backend недоступен.</p>
+      )}
       <p>
         Сценарии: {exerciseLabel("ResistanceBand")}, {exerciseLabel("PushUps")}, {exerciseLabel("Squats")},{" "}
         {exerciseLabel("RunInPlace")}
@@ -91,8 +104,8 @@ export default function Dashboard() {
         formScore={lastMessage.zone.form_score}
         phase={lastMessage.sadla_phase}
       />
-      <LiveControls onSend={send} />
-      <CameraControls onLiveEvent={send} />
+      <LiveControls zoneId={zoneId} setZoneId={setZoneId} onSend={send} />
+      <CameraControls zoneId={zoneId} setZoneId={setZoneId} onLiveEvent={send} />
       <MlStatusCard status={mlStatus} />
       <RecentSessions sessions={sessions} />
     </main>

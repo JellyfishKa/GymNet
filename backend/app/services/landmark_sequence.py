@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import deque
 
 from app.schemas.ingest import LandmarkInput
+from app.services.zone_locks import zone_lock
 
 # Порядок точек совпадает с MediaPipe Pose (33 landmarks).
 LANDMARK_NAMES = [
@@ -67,16 +68,19 @@ def push_landmark_frame(zone_id: str, landmarks: list[LandmarkInput]) -> None:
     if not landmarks:
         return
     frame = landmarks_to_vector(landmarks)
-    buffer = _buffers.setdefault(zone_id, deque(maxlen=WINDOW_SIZE))
-    buffer.append(frame)
+    with zone_lock(zone_id):
+        buffer = _buffers.setdefault(zone_id, deque(maxlen=WINDOW_SIZE))
+        buffer.append(frame)
 
 
 def get_ready_window(zone_id: str) -> list[list[float]] | None:
-    buffer = _buffers.get(zone_id)
-    if buffer is None or len(buffer) < WINDOW_SIZE:
-        return None
-    return [list(frame) for frame in buffer]
+    with zone_lock(zone_id):
+        buffer = _buffers.get(zone_id)
+        if buffer is None or len(buffer) < WINDOW_SIZE:
+            return None
+        return [list(item) for item in buffer]
 
 
 def clear_landmark_buffer(zone_id: str) -> None:
-    _buffers.pop(zone_id, None)
+    with zone_lock(zone_id):
+        _buffers.pop(zone_id, None)

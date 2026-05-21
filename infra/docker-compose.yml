@@ -46,7 +46,8 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost/ >/dev/null 2>&1 || exit 1"]
@@ -62,10 +63,13 @@ services:
       dockerfile: Dockerfile
       args:
         REQUIREMENTS_FILE: requirements.gpu.txt
+    profiles: ["ml"]
     restart: "no"
-    gpus: all
     volumes:
       - ../ml:/workspace
+      - ml_live_data:/shared_ml
+    environment:
+      GYMNET_LIVE_TRAIN_PATH: /shared_ml/live_train.jsonl
     command: ["python", "run_pipeline.py"]
 
   ml-notebook:
@@ -78,6 +82,9 @@ services:
     restart: unless-stopped
     volumes:
       - ../ml:/workspace
+      - ml_live_data:/shared_ml
+    environment:
+      GYMNET_LIVE_TRAIN_PATH: /shared_ml/live_train.jsonl
     ports:
       - "8888:8888"
 
@@ -90,6 +97,9 @@ services:
     profiles: ["ml"]
     volumes:
       - ../ml:/workspace
+      - ml_live_data:/shared_ml
+    environment:
+      GYMNET_LIVE_TRAIN_PATH: /shared_ml/live_train.jsonl
     command: ["python", "train.py"]
 
   ml-generate:
@@ -101,6 +111,9 @@ services:
     profiles: ["ml"]
     volumes:
       - ../ml:/workspace
+      - ml_live_data:/shared_ml
+    environment:
+      GYMNET_LIVE_TRAIN_PATH: /shared_ml/live_train.jsonl
     command: ["python", "generate_synthetic_dataset.py"]
 
   ml-eval:
@@ -112,6 +125,9 @@ services:
     profiles: ["ml"]
     volumes:
       - ../ml:/workspace
+      - ml_live_data:/shared_ml
+    environment:
+      GYMNET_LIVE_TRAIN_PATH: /shared_ml/live_train.jsonl
     command: ["python", "evaluate.py"]
 
   ml-autotrain:
