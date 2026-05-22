@@ -8,7 +8,7 @@ from app.services.exercise_classifier import classify_exercise
 from app.services.landmark_sequence import get_ready_window, push_landmark_frame
 from app.services.live_update import apply_live_update
 from app.services.activity_gate import is_meaningful_activity
-from app.services.pose_pipeline import RoiRect, detect_presence_raw, form_penalty, infer_phase
+from app.services.pose_pipeline import PRESENCE_KEYPOINTS, RoiRect, _roi_presence_ratio, detect_presence_raw, form_penalty, infer_phase
 from app.services.training_data_sink import append_live_training_window
 from app.services.zone_presence import update_zone_presence
 
@@ -26,6 +26,23 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
         y_max=payload.roi.y_max,
     )
     in_roi = detect_presence_raw(named_points, roi) if named_points else False
+    presence_hits = [
+        name
+        for name in PRESENCE_KEYPOINTS
+        if named_points.get(name)
+        and roi.x_min <= named_points[name][0] <= roi.x_max
+        and roi.y_min <= named_points[name][1] <= roi.y_max
+    ]
+    presence_required = max(2, int(len(PRESENCE_KEYPOINTS) * _roi_presence_ratio()))
+    roi_debug = {
+        "x_min": payload.roi.x_min,
+        "y_min": payload.roi.y_min,
+        "x_max": payload.roi.x_max,
+        "y_max": payload.roi.y_max,
+        "presence_required": presence_required,
+        "presence_hits": presence_hits,
+        "presence_ok": in_roi,
+    }
 
     window = None
     if payload.landmarks:
@@ -36,7 +53,16 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
     raw_present = in_roi and is_active
     is_present = update_zone_presence(payload.zone_id, raw_present)
 
-    exercise, classification_source, confidence, class_scores, pose_debug, body_orientation = classify_exercise(
+    (
+        exercise,
+        classification_source,
+        confidence,
+        class_scores,
+        pose_debug,
+        body_orientation,
+        ml_probs,
+        heuristic_scores,
+    ) = classify_exercise(
         payload.zone_id,
         window=window,
         landmarks=named_points,
@@ -90,7 +116,10 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
         classification_source=classification_source,
         detected_exercise_confidence=confidence,
         classification_scores=class_scores,
+        heuristic_scores=heuristic_scores,
+        ml_probs=ml_probs,
         body_orientation=body_orientation,
         pose_debug=pose_debug,
+        roi_debug=roi_debug,
         supported_exercises=live_result.get("supported_exercises", ["PushUps", "Squats", "RunInPlace"]),
     )

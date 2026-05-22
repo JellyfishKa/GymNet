@@ -24,7 +24,6 @@ export type AutotrainStatus = {
   pending_sessions?: number;
   last_error?: string;
   last_details?: string;
-  last_retrain_at?: string | null;
 };
 
 export type MlStatusResponse = {

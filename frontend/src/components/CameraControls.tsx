@@ -3,6 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { apiPath } from "../config/runtime";
 import type { PoseIngestResponse } from "../services/ingestTypes";
 import { createPose, type MediaPipePose, type Results } from "../utils/mediapipePose";
+import {
+  DEFAULT_ROI,
+  drawPoseOverlay,
+  syncCanvasToVideo,
+  type OverlayFrame,
+  type OverlayLayers,
+} from "../utils/poseOverlay";
 
 type CameraControlsProps = {
   zoneId: string;
@@ -46,10 +53,11 @@ const LANDMARK_NAMES = [
   "right_foot_index",
 ] as const;
 
-const DEFAULT_ROI = { x_min: 0.25, y_min: 0.2, x_max: 0.75, y_max: 0.95 };
-
 export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: CameraControlsProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const overlayFrameRef = useRef<OverlayFrame>({ landmarks: [], roi: DEFAULT_ROI, ingest: null });
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const poseRef = useRef<MediaPipePose | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -62,6 +70,22 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
+  const [overlayLayers, setOverlayLayers] = useState<OverlayLayers>({
+    roi: true,
+    skeleton: true,
+    angles: true,
+    scores: true,
+  });
+
+  const redrawOverlay = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    syncCanvasToVideo(canvas, video);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    drawPoseOverlay(ctx, canvas.width, canvas.height, overlayFrameRef.current, overlayLayers);
+  };
 
   const stopCamera = (resetStatus = true) => {
     setEnabled(false);
@@ -84,6 +108,9 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    resizeObserverRef.current?.disconnect();
+    resizeObserverRef.current = null;
+    overlayFrameRef.current = { landmarks: [], roi: DEFAULT_ROI, ingest: null };
   };
 
   const pushDebug = (entry: string) => {
@@ -147,6 +174,13 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     sendInFlightRef.current = true;
 
     const landmarks = results.poseLandmarks ?? [];
+    overlayFrameRef.current = {
+      landmarks: landmarks.map((lm) => ({ x: lm.x, y: lm.y, visibility: lm.visibility })),
+      roi: DEFAULT_ROI,
+      ingest: overlayFrameRef.current.ingest,
+    };
+    redrawOverlay();
+
     const ingestPayload = {
       zone_id: zoneId,
       roi: DEFAULT_ROI,
@@ -168,6 +202,11 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
         return;
       }
       const event = (await response.json()) as PoseIngestResponse;
+      overlayFrameRef.current = {
+        ...overlayFrameRef.current,
+        ingest: event,
+      };
+      redrawOverlay();
       onZoneUpdate(event);
       const label = event.zone?.current_exercise ?? event.exercise;
       if (event.is_present) {
@@ -270,6 +309,11 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
       setStatus("Камера включена — настройте кадр так, чтобы человек был в рамке ROI");
       pushDebug("Камера активна, запускаю цикл кадров");
       await loadVideoDevices();
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = new ResizeObserver(() => redrawOverlay());
+      if (videoRef.current) {
+        resizeObserverRef.current.observe(videoRef.current);
+      }
       scheduleNextFrame();
     } catch (error) {
       const message = extractErrorMessage(error);
@@ -280,6 +324,10 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
       stopCamera(false);
     }
   };
+
+  useEffect(() => {
+    redrawOverlay();
+  }, [overlayLayers]);
 
   useEffect(() => {
     const initDevices = async () => {
@@ -341,13 +389,66 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
         </button>
       </div>
       <p>{status}</p>
+      <div className="overlay-toggles">
+        <label>
+          <input
+            type="checkbox"
+            checked={overlayLayers.roi}
+            onChange={(e) => {
+              setOverlayLayers((prev) => ({ ...prev, roi: e.target.checked }));
+              setTimeout(redrawOverlay, 0);
+            }}
+          />
+          Рабочая зона (ROI)
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={overlayLayers.skeleton}
+            onChange={(e) => {
+              setOverlayLayers((prev) => ({ ...prev, skeleton: e.target.checked }));
+              setTimeout(redrawOverlay, 0);
+            }}
+          />
+          Скелет и корпус
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={overlayLayers.angles}
+            onChange={(e) => {
+              setOverlayLayers((prev) => ({ ...prev, angles: e.target.checked }));
+              setTimeout(redrawOverlay, 0);
+            }}
+          />
+          Углы сгиба
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={overlayLayers.scores}
+            onChange={(e) => {
+              setOverlayLayers((prev) => ({ ...prev, scores: e.target.checked }));
+              setTimeout(redrawOverlay, 0);
+            }}
+          />
+          Оценки ML / эвристика
+        </label>
+      </div>
+      <p className="hint">
+        Зелёная рамка ROI — зона учёта; точки нос/бёдра — попадание в ROI. Цвет скелета — выбранное упражнение.
+        Голубые дуги — локти, оранжевые — колена.
+      </p>
       {debugLog.length > 0 && (
         <details>
           <summary>Логи камеры</summary>
           <pre>{debugLog.join("\n")}</pre>
         </details>
       )}
-      <video ref={videoRef} className="camera-preview" playsInline muted autoPlay />
+      <div className="camera-stack">
+        <video ref={videoRef} className="camera-preview" playsInline muted autoPlay />
+        <canvas ref={canvasRef} className="camera-overlay" />
+      </div>
     </section>
   );
 }
