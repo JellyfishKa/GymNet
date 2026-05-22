@@ -1,5 +1,6 @@
 from app.services.exercise_profiles import (
     classify_heuristic,
+    classify_heuristic_detailed,
     elbow_angle,
     infer_pushup_phase,
     infer_squat_phase,
@@ -101,3 +102,17 @@ def test_pushup_rep_sequence_reaches_standing() -> None:
         phases.append(infer_pushup_phase(lm, zone))
     assert "Bottom" in phases
     assert phases[-1] == "Standing"
+
+
+def test_temporal_angles_empty_vals_no_crash() -> None:
+    """_temporal_joint_angles must not crash when angle lists are empty."""
+    # Minimal landmarks — no elbows/knees so angle lists will be empty
+    landmarks = {
+        "left_shoulder": (0.5, 0.3),
+        "right_shoulder": (0.5, 0.3),
+        "left_hip": (0.5, 0.6),
+        "right_hip": (0.5, 0.6),
+    }
+    # Should not crash
+    label, scores, debug, orientation = classify_heuristic_detailed(landmarks, window=None)
+    assert label in ("PushUps", "Squats", "RunInPlace")
