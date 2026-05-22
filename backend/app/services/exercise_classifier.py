@@ -102,7 +102,7 @@ def _fuse_ml_and_heuristic(
     heur_scores: dict[str, float],
     landmarks: dict[str, tuple[float, float]],
     window_list: list[list[float]] | None,
-) -> tuple[str, float, str]:
+) -> tuple[str, float, str, dict[str, float]]:
     """Слияние ML + эвристики с общими pose-gates (те же правила, что у эвристик)."""
     weight = float(os.environ.get("GYMNET_ML_FUSION_WEIGHT", "0.55"))
     fused: dict[str, float] = {}
@@ -119,7 +119,7 @@ def _fuse_ml_and_heuristic(
         source = "heuristic_override"
     else:
         source = "ml"
-    return label, score, source
+    return label, score, source, gated
 
 
 def _point_in_roi(point: tuple[float, float] | None, roi_bounds: tuple[float, float, float, float]) -> bool:
@@ -147,6 +147,8 @@ def _smooth(zone_id: str, label: str) -> str:
     counts: dict[str, int] = {}
     for item in buf:
         counts[item] = counts.get(item, 0) + 1
+    if not counts:
+        return label
     return max(counts, key=counts.get)
 
 
@@ -164,34 +166,56 @@ def classify_exercise(
     *,
     window: np.ndarray | list[list[float]] | None,
     landmarks: dict[str, tuple[float, float]],
-) -> tuple[str, str, float | None, dict[str, float], dict[str, float | None], str]:
+) -> tuple[
+    str,
+    str,
+    float | None,
+    dict[str, float],
+    dict[str, float | None],
+    str,
+    dict[str, float] | None,
+    dict[str, float],
+]:
     """
-    Возвращает (exercise, source, confidence, scores, debug_metrics).
-    source: "ml" | "heuristic" | "heuristic_override"
+    Возвращает (exercise, source, confidence, classification_scores, debug, orientation,
+    ml_probs, heuristic_scores).
     """
     window_list = None
     window_arr = _window_array(window)
     if window_arr is not None:
         window_list = window_arr.tolist()
 
-    heur_label, scores, debug, body_orientation = classify_heuristic_detailed(landmarks, window_list)
+    heur_label, heuristic_scores, debug, body_orientation = classify_heuristic_detailed(
+        landmarks, window_list
+    )
     raw_label = heur_label
     confidence: float | None = None
     source = "heuristic"
+    classification_scores = heuristic_scores
+    ml_probs: dict[str, float] | None = None
 
     if window_arr is not None and _load_model() is not None:
         try:
             ml_probs = _predict_ml_probs(window_arr)
-            raw_label, confidence, source = _fuse_ml_and_heuristic(
-                ml_probs, scores, landmarks, window_list
+            raw_label, confidence, source, classification_scores = _fuse_ml_and_heuristic(
+                ml_probs, heuristic_scores, landmarks, window_list
             )
         except Exception:
             logger.exception("Ошибка ML-inference, fallback на эвристики")
 
     exercise = _smooth(zone_id, raw_label)
     if confidence is None and source.startswith("heuristic"):
-        confidence = scores.get(exercise, scores.get(heur_label))
-    return exercise, source, confidence, scores, debug, body_orientation
+        confidence = classification_scores.get(exercise, classification_scores.get(heur_label))
+    return (
+        exercise,
+        source,
+        confidence,
+        classification_scores,
+        debug,
+        body_orientation,
+        ml_probs,
+        heuristic_scores,
+    )
 
 
 def clear_classifier_state(zone_id: str) -> None:

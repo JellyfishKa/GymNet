@@ -1,4 +1,4 @@
-from app.services.exercise_classifier import classify_exercise, classify_heuristic
+from app.services.exercise_classifier import classify_exercise, classify_heuristic, clear_classifier_state
 
 
 def test_heuristic_pushups() -> None:
@@ -39,7 +39,16 @@ def test_smoothing_majority_vote() -> None:
     }
     labels = []
     for _ in range(6):
-        exercise, source, _, _, _, _ = classify_exercise(zone_id, window=None, landmarks=landmarks)
+        exercise, source, _, _, _, _, _, _ = classify_exercise(zone_id, window=None, landmarks=landmarks)
         labels.append(exercise)
         assert source == "heuristic"
     assert labels[-1] == "Squats"
+
+
+def test_smooth_does_not_crash_on_first_call() -> None:
+    """_smooth must not crash when buffer is empty on first call."""
+    zone_id = "test_smooth_empty"
+    clear_classifier_state(zone_id)
+    landmarks = {"left_shoulder": (0.5, 0.3), "left_hip": (0.5, 0.6)}
+    result = classify_exercise(zone_id, window=None, landmarks=landmarks)
+    assert result[0] in ("PushUps", "Squats", "RunInPlace")
