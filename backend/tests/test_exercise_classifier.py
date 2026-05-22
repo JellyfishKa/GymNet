@@ -76,3 +76,40 @@ def test_classify_falls_back_when_ml_raises(monkeypatch) -> None:
     assert result[0] in ("PushUps", "Squats", "RunInPlace")
     assert result[1] == "heuristic"
     assert result[6] is None  # ml_probs should be None on failure
+
+
+def test_classify_with_none_window() -> None:
+    """window=None forces heuristic path; ml_probs must be None."""
+    zone_id = "test_none_window"
+    clear_classifier_state(zone_id)
+    lm = {
+        "left_shoulder": (0.5, 0.3),
+        "right_shoulder": (0.5, 0.3),
+        "left_hip": (0.5, 0.6),
+        "right_hip": (0.5, 0.6),
+    }
+    exercise, source, _conf, _scores, _debug, _orient, ml_probs, _heur = classify_exercise(
+        zone_id, window=None, landmarks=lm
+    )
+    assert exercise in ("PushUps", "Squats", "RunInPlace")
+    assert source in ("heuristic", "smooth")
+    assert ml_probs is None
+
+
+def test_classify_empty_landmarks_returns_default() -> None:
+    """Empty landmarks must not crash; returns a valid exercise label."""
+    zone_id = "test_empty_lm"
+    clear_classifier_state(zone_id)
+    exercise, *_ = classify_exercise(zone_id, window=None, landmarks={})
+    assert exercise in ("PushUps", "Squats", "RunInPlace")
+
+
+def test_classify_multiple_zones_independent() -> None:
+    """Two zones must not share smoothing state."""
+    clear_classifier_state("zone_a")
+    clear_classifier_state("zone_b")
+    lm = {"left_shoulder": (0.5, 0.3), "left_hip": (0.5, 0.6)}
+    result_a, *_ = classify_exercise("zone_a", window=None, landmarks=lm)
+    result_b, *_ = classify_exercise("zone_b", window=None, landmarks=lm)
+    assert result_a in ("PushUps", "Squats", "RunInPlace")
+    assert result_b in ("PushUps", "Squats", "RunInPlace")
