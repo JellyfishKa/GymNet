@@ -1,6 +1,7 @@
+import logging
 from typing import cast
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.schemas.ingest import PoseIngestRequest, PoseIngestResponse, ZoneSnapshot
 from app.schemas.live import ExerciseName, LiveUpdateRequest, PhaseName
@@ -11,6 +12,10 @@ from app.services.activity_gate import is_meaningful_activity
 from app.services.pose_pipeline import PRESENCE_KEYPOINTS, RoiRect, _roi_presence_ratio, detect_presence_raw, form_penalty, infer_phase
 from app.services.training_data_sink import append_live_training_window
 from app.services.zone_presence import update_zone_presence
+
+logger = logging.getLogger(__name__)
+
+_VALID_EXERCISES: frozenset[str] = frozenset({"PushUps", "Squats", "RunInPlace"})
 
 router = APIRouter(prefix="/live", tags=["live-ingest"])
 
@@ -53,23 +58,34 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
     raw_present = in_roi and is_active
     is_present = update_zone_presence(payload.zone_id, raw_present)
 
-    (
-        exercise,
-        classification_source,
-        confidence,
-        class_scores,
-        pose_debug,
-        body_orientation,
-        ml_probs,
-        heuristic_scores,
-    ) = classify_exercise(
-        payload.zone_id,
-        window=window,
-        landmarks=named_points,
-    )
+    try:
+        (
+            exercise,
+            classification_source,
+            confidence,
+            class_scores,
+            pose_debug,
+            body_orientation,
+            ml_probs,
+            heuristic_scores,
+        ) = classify_exercise(
+            payload.zone_id,
+            window=window,
+            landmarks=named_points,
+        )
+    except Exception:
+        logger.exception("Classification failed for zone %s", payload.zone_id)
+        exercise = "RunInPlace"
+        classification_source = "error"
+        confidence = 0.0
+        class_scores = {}
+        pose_debug = {}
+        body_orientation = "unknown"
+        ml_probs = None
+        heuristic_scores = {}
     phase = infer_phase(exercise, named_points, payload.zone_id) if is_present else "Neutral"
     penalty = form_penalty(exercise, named_points, phase) if is_present else 0.0
-    exercise_for_state = cast(ExerciseName, exercise) if is_present else None
+    exercise_for_state = cast(ExerciseName, exercise) if (is_present and exercise in _VALID_EXERCISES) else None
 
     if is_present and window is not None:
         append_live_training_window(
@@ -87,7 +103,10 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
             form_penalty=penalty,
         )
     )
-    zone_dict = live_result["zone"]
+    zone_dict = live_result.get("zone")
+    if zone_dict is None:
+        logger.error("apply_live_update returned no zone for %s", payload.zone_id)
+        raise HTTPException(status_code=500, detail="Internal state error")
 
     return PoseIngestResponse(
         zone_id=payload.zone_id,
