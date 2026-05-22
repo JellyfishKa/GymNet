@@ -64,6 +64,8 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
   const processingRef = useRef(false);
   const lastSentRef = useRef(0);
   const sendInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+  const overlayRedrawTimerRef = useRef<number | null>(null);
 
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState("Камера выключена");
@@ -76,6 +78,13 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     angles: true,
     scores: true,
   });
+
+  const deferredRedraw = () => {
+    if (overlayRedrawTimerRef.current !== null) {
+      window.clearTimeout(overlayRedrawTimerRef.current);
+    }
+    overlayRedrawTimerRef.current = window.setTimeout(redrawOverlay, 0);
+  };
 
   const redrawOverlay = () => {
     const video = videoRef.current;
@@ -110,6 +119,10 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     }
     resizeObserverRef.current?.disconnect();
     resizeObserverRef.current = null;
+    if (overlayRedrawTimerRef.current !== null) {
+      window.clearTimeout(overlayRedrawTimerRef.current);
+      overlayRedrawTimerRef.current = null;
+    }
     overlayFrameRef.current = { landmarks: [], roi: DEFAULT_ROI, ingest: null };
   };
 
@@ -191,11 +204,14 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
       })),
     };
 
+    const controller = new AbortController();
+    const fetchTimeout = window.setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(apiPath("/api/live/ingest"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(ingestPayload),
+        signal: controller.signal,
       });
       if (!response.ok) {
         scheduleNextFrame();
@@ -223,8 +239,9 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
         setStatus("Камера активна: зона свободна");
       }
     } catch {
-      setStatus("Ошибка отправки данных камеры");
+      if (mountedRef.current) setStatus("Ошибка отправки данных камеры");
     } finally {
+      window.clearTimeout(fetchTimeout);
       sendInFlightRef.current = false;
       scheduleNextFrame();
     }
@@ -349,6 +366,7 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     window.addEventListener("unhandledrejection", onUnhandledRejection);
 
     return () => {
+      mountedRef.current = false;
       window.removeEventListener("error", onWindowError);
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
       stopCamera();
@@ -396,7 +414,7 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
             checked={overlayLayers.roi}
             onChange={(e) => {
               setOverlayLayers((prev) => ({ ...prev, roi: e.target.checked }));
-              setTimeout(redrawOverlay, 0);
+              deferredRedraw();
             }}
           />
           Рабочая зона (ROI)
@@ -407,7 +425,7 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
             checked={overlayLayers.skeleton}
             onChange={(e) => {
               setOverlayLayers((prev) => ({ ...prev, skeleton: e.target.checked }));
-              setTimeout(redrawOverlay, 0);
+              deferredRedraw();
             }}
           />
           Скелет и корпус
@@ -418,7 +436,7 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
             checked={overlayLayers.angles}
             onChange={(e) => {
               setOverlayLayers((prev) => ({ ...prev, angles: e.target.checked }));
-              setTimeout(redrawOverlay, 0);
+              deferredRedraw();
             }}
           />
           Углы сгиба
@@ -429,7 +447,7 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
             checked={overlayLayers.scores}
             onChange={(e) => {
               setOverlayLayers((prev) => ({ ...prev, scores: e.target.checked }));
-              setTimeout(redrawOverlay, 0);
+              deferredRedraw();
             }}
           />
           Оценки ML / эвристика

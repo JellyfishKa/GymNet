@@ -1,6 +1,6 @@
 export type ZoneSnapshot = {
   zone_id: string;
-  status: "Free" | "Busy" | "Crowded" | string;
+  status: "Free" | "Busy" | "Crowded";
   dwell_seconds: number;
   current_exercise: string | null;
   exercise_seconds: number;

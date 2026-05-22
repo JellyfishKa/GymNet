@@ -1,5 +1,15 @@
 import { apiPath } from "../config/runtime";
 
+async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const id = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    window.clearTimeout(id);
+  }
+}
+
 export type RecentSession = {
   id: number;
   exercise: string;
@@ -39,7 +49,7 @@ export type MlStatusResponse = {
 };
 
 export async function fetchMlStatus(): Promise<MlStatusResponse> {
-  const response = await fetch(apiPath("/api/ml/status"));
+  const response = await fetchWithTimeout(apiPath("/api/ml/status"));
   if (!response.ok) {
     throw new Error(`Не удалось загрузить ML-статус: ${response.status}`);
   }
@@ -47,7 +57,7 @@ export async function fetchMlStatus(): Promise<MlStatusResponse> {
 }
 
 export async function fetchRecentSessions(zoneId: string): Promise<RecentSession[]> {
-  const response = await fetch(apiPath(`/api/sessions/${zoneId}`));
+  const response = await fetchWithTimeout(apiPath(`/api/sessions/${zoneId}`));
   if (!response.ok) {
     throw new Error(`Не удалось загрузить сессии: ${response.status}`);
   }
