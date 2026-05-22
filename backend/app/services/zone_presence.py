@@ -32,3 +32,10 @@ def reset_zone_presence(zone_id: str) -> None:
     _present_streak.pop(zone_id, None)
     _absent_streak.pop(zone_id, None)
     _stable_present.pop(zone_id, None)
+
+
+def cleanup_zone_presence(zone_id: str) -> None:
+    """Remove all tracking state for a zone to prevent unbounded dict growth."""
+    _present_streak.pop(zone_id, None)
+    _absent_streak.pop(zone_id, None)
+    _stable_present.pop(zone_id, None)

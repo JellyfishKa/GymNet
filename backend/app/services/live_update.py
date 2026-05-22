@@ -22,6 +22,7 @@ from app.services.training_data_sink import (
     append_live_training_window,
 )
 from app.services.zone_locks import zone_lock
+from app.services.zone_presence import cleanup_zone_presence
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,8 @@ def _finalize_session(
         )
     except Exception:
         logger.exception("Не удалось записать live_sessions: zone=%s", zone_id)
+
+    cleanup_zone_presence(zone_id)
 
 
 def apply_live_update(incoming: LiveUpdateRequest) -> dict:
