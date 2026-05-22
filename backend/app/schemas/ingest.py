@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class RoiSchema(BaseModel):
@@ -6,6 +6,14 @@ class RoiSchema(BaseModel):
     y_min: float = Field(ge=0.0, le=1.0)
     x_max: float = Field(ge=0.0, le=1.0)
     y_max: float = Field(ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def check_roi_order(self) -> "RoiSchema":
+        if self.x_min >= self.x_max:
+            raise ValueError("x_min must be less than x_max")
+        if self.y_min >= self.y_max:
+            raise ValueError("y_min must be less than y_max")
+        return self
 
 
 class LandmarkInput(BaseModel):

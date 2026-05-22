@@ -1,5 +1,7 @@
 import math
 
+import pytest
+from pydantic import ValidationError
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -70,3 +72,15 @@ def test_idle_in_roi_not_counted() -> None:
     assert last["in_roi"] is True
     assert last["is_present"] is False
     assert last["activity_rejected"] == "idle"
+
+
+def test_roi_inverted_x_rejected():
+    from app.schemas.ingest import RoiSchema
+    with pytest.raises(ValidationError):
+        RoiSchema(x_min=0.8, y_min=0.1, x_max=0.2, y_max=0.9)
+
+
+def test_roi_valid_passes():
+    from app.schemas.ingest import RoiSchema
+    roi = RoiSchema(x_min=0.1, y_min=0.1, x_max=0.9, y_max=0.9)
+    assert roi.x_min < roi.x_max
