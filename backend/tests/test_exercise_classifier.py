@@ -46,7 +46,7 @@ def test_smoothing_majority_vote() -> None:
 
 
 def test_smooth_does_not_crash_on_first_call() -> None:
-    """_smooth must not crash when buffer is empty on first call."""
+    """Smoke test: classify_exercise returns valid exercise on a fresh zone (no prior state)."""
     zone_id = "test_smooth_empty"
     clear_classifier_state(zone_id)
     landmarks = {"left_shoulder": (0.5, 0.3), "left_hip": (0.5, 0.6)}
