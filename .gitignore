@@ -11,3 +11,4 @@
 /ml/data/real/camera_real_test.jsonl
 /ml/experiments/*.pt
 /ml/experiments/*_report.json
+/.omc

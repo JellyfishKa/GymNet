@@ -1,8 +1,8 @@
 {
-  "merged_at": "2026-05-21T19:45:21.313897+00:00",
+  "merged_at": "2026-05-22T07:29:37.783794+00:00",
   "synthetic_samples": 540,
-  "live_samples": 1,
-  "combined_samples": 541,
-  "output_path": "data\\combined\\train_combined.jsonl",
-  "live_train_path": "C:\\Users\\Sergej\\Documents\\GitHub\\GymNet\\ml\\data\\real\\live_train.jsonl"
+  "live_samples": 156,
+  "combined_samples": 696,
+  "output_path": "data/combined/train_combined.jsonl",
+  "live_train_path": "/shared_ml/live_train.jsonl"
 }

@@ -49,8 +49,11 @@ class PoseIngestResponse(BaseModel):
     classification_source: str | None = None
     detected_exercise_confidence: float | None = None
     classification_scores: dict[str, float] | None = None
+    heuristic_scores: dict[str, float] | None = None
+    ml_probs: dict[str, float] | None = None
     body_orientation: str | None = None
     pose_debug: dict[str, float | None] | None = None
+    roi_debug: dict[str, float | str | list[str] | bool | None] | None = None
     supported_exercises: list[str] = Field(
         default_factory=lambda: ["PushUps", "Squats", "RunInPlace"]
     )
