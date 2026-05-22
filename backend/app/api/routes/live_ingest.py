@@ -85,7 +85,7 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
         heuristic_scores = {}
     phase = infer_phase(exercise, named_points, payload.zone_id) if is_present else "Neutral"
     penalty = form_penalty(exercise, named_points, phase) if is_present else 0.0
-    exercise_for_state = cast(ExerciseName, exercise) if (is_present and exercise in _VALID_EXERCISES) else None
+    exercise_for_state: ExerciseName | None = exercise if (is_present and exercise in _VALID_EXERCISES) else None  # type: ignore[assignment]
 
     if is_present and window is not None:
         append_live_training_window(
