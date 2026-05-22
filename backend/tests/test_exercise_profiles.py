@@ -105,14 +105,21 @@ def test_pushup_rep_sequence_reaches_standing() -> None:
 
 
 def test_temporal_angles_empty_vals_no_crash() -> None:
-    """_temporal_joint_angles must not crash when angle lists are empty."""
-    # Minimal landmarks — no elbows/knees so angle lists will be empty
+    """_temporal_joint_angles must not crash when angle lists are empty.
+
+    Supplies a real window of 6 frames so _temporal_joint_angles is actually
+    invoked.  Landmarks contain only shoulders and hips (no elbows/knees/
+    wrists/ankles), so elbow_vals and knee_vals remain empty inside
+    _temporal_joint_angles — that is the crash-prone path being exercised.
+    """
     landmarks = {
         "left_shoulder": (0.5, 0.3),
         "right_shoulder": (0.5, 0.3),
         "left_hip": (0.5, 0.6),
         "right_hip": (0.5, 0.6),
     }
-    # Should not crash
-    label, scores, debug, orientation = classify_heuristic_detailed(landmarks, window=None)
+    # Each frame must be a flat float list of length FEATURE_DIM (99).
+    frame = [0.0] * 99
+    window = [frame] * 6  # 6 >= 5, so _temporal_joint_angles will be called
+    label, scores, debug, orientation = classify_heuristic_detailed(landmarks, window=window)
     assert label in ("PushUps", "Squats", "RunInPlace")
