@@ -16,6 +16,7 @@ import numpy as np
 BodyOrientation = Literal["frontal", "left_profile", "right_profile"]
 
 from app.services.landmark_sequence import FEATURE_DIM, LANDMARK_NAMES, WINDOW_SIZE
+from app.services.zone_locks import zone_lock
 
 Point = tuple[float, float]
 Landmarks = dict[str, Point]
@@ -372,8 +373,9 @@ def infer_pushup_phase(landmarks: Landmarks, zone_id: str) -> str:
     if angle is None:
         angle = elbow_angle(landmarks, pick="max")
     metric = angle if angle is not None else 0.0
-    prev = _last_elbow_angle.get(zone_id)
-    _last_elbow_angle[zone_id] = metric
+    with zone_lock(zone_id):
+        prev = _last_elbow_angle.get(zone_id)
+        _last_elbow_angle[zone_id] = metric
 
     full_extension = False
     if angle is not None and angle >= profile.standing_min_angle:
@@ -418,8 +420,9 @@ def infer_squat_phase(landmarks: Landmarks, zone_id: str) -> str:
     if angle is None:
         return "Neutral"
 
-    prev = _last_knee_angle.get(zone_id)
-    _last_knee_angle[zone_id] = angle
+    with zone_lock(zone_id):
+        prev = _last_knee_angle.get(zone_id)
+        _last_knee_angle[zone_id] = angle
 
     if angle >= profile.standing_min_angle:
         return "Standing"
@@ -740,5 +743,6 @@ def form_penalty_for_exercise(exercise: str, landmarks: Landmarks, phase: str) -
 
 
 def reset_phase_tracking(zone_id: str) -> None:
-    _last_elbow_angle.pop(zone_id, None)
-    _last_knee_angle.pop(zone_id, None)
+    with zone_lock(zone_id):
+        _last_elbow_angle.pop(zone_id, None)
+        _last_knee_angle.pop(zone_id, None)
