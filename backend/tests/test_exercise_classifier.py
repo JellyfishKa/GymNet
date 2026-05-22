@@ -74,5 +74,5 @@ def test_classify_falls_back_when_ml_raises(monkeypatch) -> None:
         "test_ml_fallback", window=window, landmarks=landmarks
     )
     assert result[0] in ("PushUps", "Squats", "RunInPlace")
-    assert result[1] in ("heuristic", "heuristic_override", "smooth")
+    assert result[1] == "heuristic"
     assert result[6] is None  # ml_probs should be None on failure
