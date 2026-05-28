@@ -64,3 +64,23 @@ export async function fetchRecentSessions(zoneId: string): Promise<RecentSession
   const payload = (await response.json()) as SessionResponse;
   return payload.recent_sessions ?? [];
 }
+
+export type OccupancyForecast = {
+  zone_id: string;
+  hour: number;
+  day_of_week: number;
+  peak_factor: number;
+  wait_probability: number;
+  wait_minutes: number;
+  busyness_level: "low" | "medium" | "high";
+};
+
+export async function fetchOccupancyForecast(zoneId: string): Promise<OccupancyForecast> {
+  const response = await fetchWithTimeout(
+    apiPath(`/api/ml/occupancy-forecast?zone_id=${encodeURIComponent(zoneId)}`)
+  );
+  if (!response.ok) {
+    throw new Error(`Не удалось загрузить прогноз загруженности: ${response.status}`);
+  }
+  return (await response.json()) as OccupancyForecast;
+}

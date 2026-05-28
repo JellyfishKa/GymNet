@@ -32,3 +32,19 @@ export function exerciseLabel(value: string | null): string {
 export function phaseLabel(value: string): string {
   return PHASE_LABELS[value] ?? value;
 }
+
+const MUSCLE_GROUP_LABELS: Record<string, string> = {
+  chest: "Грудь",
+  triceps: "Трицепсы",
+  shoulders: "Плечи",
+  quadriceps: "Квадрицепсы",
+  glutes: "Ягодицы",
+  hamstrings: "Бицепсы бёдер",
+  cardio: "Кардио",
+  calves: "Икры",
+  core: "Корпус",
+};
+
+export function muscleGroupLabel(value: string): string {
+  return MUSCLE_GROUP_LABELS[value] ?? value;
+}

@@ -1,4 +1,5 @@
-import { exerciseLabel, phaseLabel, statusLabel } from "../utils/labels";
+import { type OccupancyForecast } from "../services/apiClient";
+import { exerciseLabel, muscleGroupLabel, phaseLabel, statusLabel } from "../utils/labels";
 
 const REP_EXERCISES = new Set(["PushUps", "Squats"]);
 
@@ -22,6 +23,9 @@ type ZoneCardProps = {
   classificationScores?: Record<string, number> | null;
   bodyOrientation?: string | null;
   poseDebug?: Record<string, number | null> | null;
+  estimatedCalories?: number | null;
+  muscleGroups?: string[] | null;
+  occupancyForecast?: OccupancyForecast | null;
 };
 
 const ORIENTATION_LABELS: Record<string, string> = {
@@ -78,6 +82,27 @@ export default function ZoneCard(props: ZoneCardProps) {
           <p>Суммарное время упражнений в сессии: {props.totalExerciseSeconds} сек</p>
           <p>Суммарные повторения в сессии: {props.totalReps}</p>
         </>
+      )}
+      {props.estimatedCalories != null && (
+        <p className="calorie-display">~{props.estimatedCalories} ккал за сессию</p>
+      )}
+      {props.muscleGroups && props.muscleGroups.length > 0 && (
+        <div className="muscle-badge-row">
+          {props.muscleGroups.map((m) => (
+            <span key={m} className="muscle-badge">{muscleGroupLabel(m)}</span>
+          ))}
+        </div>
+      )}
+      {props.occupancyForecast && (
+        <p className={`occupancy-level ${props.occupancyForecast.busyness_level}`}>
+          Загруженность зала:{" "}
+          {props.occupancyForecast.busyness_level === "high"
+            ? "Высокая"
+            : props.occupancyForecast.busyness_level === "medium"
+              ? "Средняя"
+              : "Низкая"}
+          {" "}({Math.round(props.occupancyForecast.wait_probability * 100)}% ждать &gt;5 мин)
+        </p>
       )}
       <p>Прогноз до освобождения: {props.minutesToFree} мин</p>
       <p>Оценка техники: {props.formScore}</p>

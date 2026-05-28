@@ -41,4 +41,6 @@ export type PoseIngestResponse = {
     presence_ok?: boolean;
   } | null;
   supported_exercises?: string[];
+  estimated_calories?: number | null;
+  muscle_groups?: string[] | null;
 };

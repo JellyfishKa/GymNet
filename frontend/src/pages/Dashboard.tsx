@@ -4,7 +4,7 @@ import CameraControls from "../components/CameraControls";
 import MlStatusCard from "../components/MlStatusCard";
 import RecentSessions from "../components/RecentSessions";
 import ZoneCard from "../components/ZoneCard";
-import { fetchMlStatus, fetchRecentSessions, type MlStatusResponse, type RecentSession } from "../services/apiClient";
+import { fetchMlStatus, fetchOccupancyForecast, fetchRecentSessions, type MlStatusResponse, type OccupancyForecast, type RecentSession } from "../services/apiClient";
 import type { PoseIngestResponse } from "../services/ingestTypes";
 import { exerciseLabel } from "../utils/labels";
 
@@ -25,6 +25,7 @@ export default function Dashboard() {
   const [cameraActive, setCameraActive] = useState(false);
   const [sessions, setSessions] = useState<RecentSession[]>([]);
   const [mlStatus, setMlStatus] = useState<MlStatusResponse | null>(null);
+  const [occupancyForecast, setOccupancyForecast] = useState<OccupancyForecast | null>(null);
   const [lastMessage, setLastMessage] = useState<PoseIngestResponse>({
     zone_id: "treadmill_zone_1",
     is_present: false,
@@ -55,6 +56,12 @@ export default function Dashboard() {
         setMlStatus(status);
       } catch {
         // ML-статус появится после первого retrain.
+      }
+      try {
+        const forecast = await fetchOccupancyForecast(zoneId);
+        setOccupancyForecast(forecast);
+      } catch {
+        // Прогноз загруженности недоступен.
       }
     };
     void loadData();
@@ -98,6 +105,9 @@ export default function Dashboard() {
         classificationScores={lastMessage.classification_scores}
         bodyOrientation={lastMessage.body_orientation}
         poseDebug={lastMessage.pose_debug}
+        estimatedCalories={lastMessage.estimated_calories}
+        muscleGroups={lastMessage.muscle_groups}
+        occupancyForecast={occupancyForecast}
       />
       <CameraControls zoneId={zoneId} setZoneId={setZoneId} onZoneUpdate={handleZoneUpdate} />
       <MlStatusCard status={mlStatus} />
