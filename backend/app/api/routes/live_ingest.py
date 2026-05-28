@@ -118,6 +118,8 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
         form_penalty=penalty,
         minutes_to_free=live_result.get("minutes_to_free"),
         sadla_phase=live_result.get("sadla_phase"),
+        estimated_calories=live_result.get("estimated_calories"),
+        muscle_groups=live_result.get("muscle_groups"),
         zone=ZoneSnapshot(
             zone_id=zone_dict["zone_id"],
             status=zone_dict["status"],

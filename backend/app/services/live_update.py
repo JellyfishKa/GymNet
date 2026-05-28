@@ -26,6 +26,8 @@ from app.services.zone_presence import cleanup_zone_presence
 
 logger = logging.getLogger(__name__)
 
+from app.services.calorie_estimator import estimate_calories
+from app.services.muscle_groups import get_muscle_groups
 from app.services.rep_exercise_metrics import is_rep_based
 HISTORY_MAXLEN = 50
 _absent_streak: dict[str, int] = {}
@@ -175,9 +177,14 @@ def apply_live_update(incoming: LiveUpdateRequest) -> dict:
             historical_dwell_seconds=history,
         )
 
+        calories = estimate_calories(zone.current_exercise, zone.exercise_seconds)
+        muscles = get_muscle_groups(zone.current_exercise)
+
         return {
             "zone": zone.to_dict(),
             "sadla_phase": sadla.current_phase,
             "minutes_to_free": minutes_to_free,
+            "estimated_calories": calories,
+            "muscle_groups": muscles,
             "supported_exercises": ["PushUps", "Squats", "RunInPlace"],
         }

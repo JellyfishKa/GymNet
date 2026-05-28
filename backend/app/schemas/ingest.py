@@ -65,3 +65,5 @@ class PoseIngestResponse(BaseModel):
     supported_exercises: list[str] = Field(
         default_factory=lambda: ["PushUps", "Squats", "RunInPlace"]
     )
+    estimated_calories: float | None = None
+    muscle_groups: list[str] | None = None
