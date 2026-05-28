@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -23,7 +24,7 @@ async def websocket_live(websocket: WebSocket) -> None:
                 continue
 
             try:
-                result = apply_live_update(incoming)
+                result = await asyncio.to_thread(apply_live_update, incoming)
             except Exception:
                 logger.exception("Ошибка live-обновления: zone=%s", payload.get("zone_id"))
                 continue

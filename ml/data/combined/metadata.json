@@ -1,8 +1,8 @@
 {
-  "merged_at": "2026-05-22T07:29:37.783794+00:00",
+  "merged_at": "2026-05-23T10:48:25.025234+00:00",
   "synthetic_samples": 540,
-  "live_samples": 156,
-  "combined_samples": 696,
+  "live_samples": 197,
+  "combined_samples": 737,
   "output_path": "data/combined/train_combined.jsonl",
   "live_train_path": "/shared_ml/live_train.jsonl"
 }

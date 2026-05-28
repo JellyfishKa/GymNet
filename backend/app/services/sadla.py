@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 
-SADLA_SEQUENCE = ["Neutral", "TransitionDown", "Bottom", "TransitionUp", "Standing"]
+SADLA_SEQUENCE = ["Standing", "TransitionDown", "Bottom", "TransitionUp"]
 
 
 @dataclass(slots=True)

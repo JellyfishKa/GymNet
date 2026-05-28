@@ -12,3 +12,6 @@
 /ml/experiments/*.pt
 /ml/experiments/*_report.json
 /.omc
+/backend/.omc
+/scratch
+scripts/generate_kursovaya_draft.py
