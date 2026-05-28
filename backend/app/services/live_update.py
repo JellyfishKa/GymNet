@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
@@ -31,6 +32,18 @@ from app.services.muscle_groups import get_muscle_groups
 from app.services.rep_exercise_metrics import is_rep_based
 HISTORY_MAXLEN = 50
 _absent_streak: dict[str, int] = {}
+
+
+@dataclass
+class _PendingSession:
+    previous_exercise: str | None
+    previous_dwell: int
+    previous_total_rep_count: int
+    previous_total_exercise_seconds: int
+    previous_form_score: float
+
+
+_pending_finalize: dict[str, _PendingSession] = {}
 
 
 def _history_list(zone_id: str) -> list[int]:
@@ -139,26 +152,34 @@ def apply_live_update(incoming: LiveUpdateRequest) -> dict:
         zone.total_rep_count = previous_total_rep_count + rep_delta
         zone.form_score = max(0.0, zone.form_score - incoming.form_penalty)
 
-        # Дебаунс выхода: две подряд is_present=false перед сохранением сессии.
+        # Дебаунс выхода: два подряд is_present=false перед сохранением в БД.
+        # На 2-м кадре dwell уже 0 (сброшен на 1-м), поэтому метрики берём из снимка.
         if incoming.is_present:
             _absent_streak[incoming.zone_id] = 0
+            _pending_finalize.pop(incoming.zone_id, None)
         else:
-            _absent_streak[incoming.zone_id] = _absent_streak.get(incoming.zone_id, 0) + 1
-
-        if (
-            not incoming.is_present
-            and _absent_streak.get(incoming.zone_id, 0) >= 2
-            and previous_dwell > 0
-        ):
-            _finalize_session(
-                zone_id=incoming.zone_id,
-                previous_exercise=previous_exercise,
-                previous_dwell=previous_dwell,
-                previous_total_rep_count=previous_total_rep_count,
-                previous_total_exercise_seconds=previous_total_exercise_seconds,
-                previous_form_score=previous_form_score,
-            )
-            _absent_streak[incoming.zone_id] = 0
+            streak = _absent_streak.get(incoming.zone_id, 0) + 1
+            _absent_streak[incoming.zone_id] = streak
+            if streak == 1 and previous_dwell > 0:
+                _pending_finalize[incoming.zone_id] = _PendingSession(
+                    previous_exercise=previous_exercise,
+                    previous_dwell=previous_dwell,
+                    previous_total_rep_count=previous_total_rep_count,
+                    previous_total_exercise_seconds=previous_total_exercise_seconds,
+                    previous_form_score=previous_form_score,
+                )
+            if streak >= 2:
+                pending = _pending_finalize.pop(incoming.zone_id, None)
+                if pending and pending.previous_dwell > 0:
+                    _finalize_session(
+                        zone_id=incoming.zone_id,
+                        previous_exercise=pending.previous_exercise,
+                        previous_dwell=pending.previous_dwell,
+                        previous_total_rep_count=pending.previous_total_rep_count,
+                        previous_total_exercise_seconds=pending.previous_total_exercise_seconds,
+                        previous_form_score=pending.previous_form_score,
+                    )
+                _absent_streak[incoming.zone_id] = 0
 
         zone_store[incoming.zone_id] = zone
         if incoming.is_present and is_rep_exercise:

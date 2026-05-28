@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter
 
 from app.services.occupancy_forecast import mm1_wait_probability, peak_factor
-from app.services.runtime_store import history_store
+from app.services.runtime_store import history_as_list
 
 router = APIRouter(prefix="/ml", tags=["occupancy"])
 
@@ -19,7 +19,7 @@ def get_occupancy_forecast(
     h = hour if hour is not None else now.hour
     dow = day_of_week if day_of_week is not None else now.weekday()
 
-    history = list(history_store.get(zone_id, []))
+    history = history_as_list(zone_id)
     prob = mm1_wait_probability(
         historical_dwell_seconds=history,
         hour=h,

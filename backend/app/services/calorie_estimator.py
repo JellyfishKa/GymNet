@@ -17,7 +17,10 @@ def estimate_calories(exercise: str | None, exercise_seconds: int) -> float | No
     """Return estimated kcal burned. None if exercise unknown or no time."""
     if not exercise or exercise_seconds <= 0:
         return None
-    rates = _load()
+    try:
+        rates = _load()
+    except (OSError, json.JSONDecodeError):
+        return None
     cal_per_hour = rates.get(exercise)
     if cal_per_hour is None:
         return None

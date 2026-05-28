@@ -1,0 +1,30 @@
+# Overlay для NVIDIA GPU (live ML в ingest без 504).
+# Запуск:
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.gpu.yml up --build -d
+# или: scripts/start_stack.ps1 -Gpu
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        PYTORCH_VARIANT: gpu
+    environment:
+      GYMNET_DISABLE_LIVE_ML: "false"
+      GYMNET_LIVE_ML_INTERVAL_SEC: "0.35"
+      GYMNET_LIVE_ML_TIMEOUT_SEC: "8"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    gpus: all
+
+  ml-autotrain:
+    build:
+      context: ../ml
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements.gpu.txt
+    gpus: all
+
+  ml-pipeline:
+    gpus: all

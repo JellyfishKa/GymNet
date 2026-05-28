@@ -27,6 +27,8 @@ services:
       GYMNET_AUTORETRAIN_SHARED_STATUS_PATH: /shared_ml/auto_retrain_status.json
       GYMNET_SHARED_MODEL_PATH: /shared_ml/best_model.pt
       GYMNET_SHARED_EVAL_PATH: /shared_ml/eval_report.json
+      GYMNET_LIVE_ML_INTERVAL_SEC: "2.5"
+      GYMNET_DISABLE_LIVE_ML: "false"
     depends_on:
       postgres:
         condition: service_healthy

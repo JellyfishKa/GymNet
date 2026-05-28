@@ -94,15 +94,19 @@ def ingest_pose(payload: PoseIngestRequest) -> PoseIngestResponse:
             window=window,
         )
 
-    live_result = apply_live_update(
-        LiveUpdateRequest(
-            zone_id=payload.zone_id,
-            is_present=is_present,
-            exercise=exercise_for_state,
-            phase=cast(PhaseName, phase),
-            form_penalty=penalty,
+    try:
+        live_result = apply_live_update(
+            LiveUpdateRequest(
+                zone_id=payload.zone_id,
+                is_present=is_present,
+                exercise=exercise_for_state,
+                phase=cast(PhaseName, phase),
+                form_penalty=penalty,
+            )
         )
-    )
+    except Exception as exc:
+        logger.exception("apply_live_update failed for zone %s", payload.zone_id)
+        raise HTTPException(status_code=500, detail=f"live_update: {exc}") from exc
     zone_dict = live_result.get("zone")
     if zone_dict is None:
         logger.error("apply_live_update returned no zone for %s", payload.zone_id)

@@ -1,6 +1,7 @@
 param(
     [switch]$NoBuild,
     [switch]$NoML,
+    [switch]$Gpu,
     [switch]$DryRun
 )
 
@@ -22,19 +23,23 @@ function Invoke-Step {
 }
 
 $composeFile = "infra/docker-compose.yml"
-$baseUp = if ($NoBuild) {
-    "docker compose -f $composeFile up -d postgres backend frontend ml-autotrain"
-} else {
-    "docker compose -f $composeFile up --build -d postgres backend frontend ml-autotrain"
-}
+$composeGpu = "infra/docker-compose.gpu.yml"
+$composeArgs = if ($Gpu) { "-f $composeFile -f $composeGpu" } else { "-f $composeFile" }
+$buildFlag = if ($NoBuild) { "" } else { " --build" }
+$baseUp = "docker compose $composeArgs up$buildFlag -d postgres backend frontend ml-autotrain"
 
 Invoke-Step -Title "Start base stack" -Command $baseUp
 
 if (-not $NoML) {
-    Invoke-Step -Title "Run ML pipeline (profile ml)" -Command "docker compose -f $composeFile --profile ml run --rm ml-pipeline"
+    $mlCompose = if ($Gpu) { "-f $composeFile -f $composeGpu" } else { "-f $composeFile" }
+    Invoke-Step -Title "Run ML pipeline (profile ml)" -Command "docker compose $mlCompose --profile ml run --rm ml-pipeline"
 }
 
 Write-Host ""
 Write-Host "Done."
 Write-Host "Frontend: http://localhost:8080"
 Write-Host "Backend health: http://localhost:8000/api/health"
+Write-Host "ML device: http://localhost:8000/api/ml/status (inference_device, cuda_available)"
+if ($Gpu) {
+    Write-Host "GPU overlay: ON (backend PyTorch cu121, gpus: all)"
+}

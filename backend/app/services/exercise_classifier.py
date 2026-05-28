@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
 import numpy as np
@@ -20,8 +22,20 @@ NUM_CLASSES = 3
 
 _model: CnnResBiGRU | None = None
 _model_loaded = False
+_model_device: str | None = None
 _ml_unavailable_reason: str | None = None
 _prediction_buffers: dict[str, deque[str]] = defaultdict(lambda: deque(maxlen=SMOOTHING_WINDOW))
+# Кэш ML-inference для live ingest (CPU в Docker иначе >8 с на кадр).
+_ml_live_cache: dict[
+    str, tuple[float, dict[str, float] | None, dict[str, float], str, float | None, str]
+] = {}
+LIVE_ML_INTERVAL_SEC = float(os.getenv("GYMNET_LIVE_ML_INTERVAL_SEC", "2.5"))
+LIVE_ML_TIMEOUT_SEC = float(os.getenv("GYMNET_LIVE_ML_TIMEOUT_SEC", "3.0"))
+_ml_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gymnet-ml")
+
+
+def _live_ml_disabled() -> bool:
+    return os.getenv("GYMNET_DISABLE_LIVE_ML", "").lower() in ("1", "true", "yes")
 
 
 def _model_path() -> Path | None:
@@ -43,8 +57,24 @@ def ml_unavailable_reason() -> str | None:
     return _ml_unavailable_reason
 
 
+def inference_device() -> str:
+    """cuda при доступности GPU (Docker: compose.gpu.yml + gpus: all)."""
+    forced = os.getenv("GYMNET_DEVICE", "").strip().lower()
+    if forced in ("cuda", "cpu"):
+        return forced
+    import torch
+
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def cuda_available() -> bool:
+    import torch
+
+    return torch.cuda.is_available()
+
+
 def _load_model() -> CnnResBiGRU | None:
-    global _model, _model_loaded, _ml_unavailable_reason
+    global _model, _model_loaded, _model_device, _ml_unavailable_reason
     if _model_loaded:
         return _model
     _model_loaded = True
@@ -56,7 +86,8 @@ def _load_model() -> CnnResBiGRU | None:
     try:
         import torch
 
-        checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+        device = inference_device()
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
         state = checkpoint.get("model_state", checkpoint)
         num_classes = int(checkpoint.get("num_classes", NUM_CLASSES))
         if num_classes != NUM_CLASSES:
@@ -69,10 +100,12 @@ def _load_model() -> CnnResBiGRU | None:
             return None
         model = CnnResBiGRU(in_features=IN_FEATURES, num_classes=num_classes)
         model.load_state_dict(state)
+        model.to(device)
         model.eval()
         _model = model
+        _model_device = device
         _ml_unavailable_reason = None
-        logger.info("Загружена ML-модель: %s", path)
+        logger.info("Загружена ML-модель: %s (device=%s)", path, device)
         return _model
     except Exception as exc:
         _ml_unavailable_reason = f"ошибка загрузки: {exc}"
@@ -90,11 +123,29 @@ def _predict_ml_probs(window: np.ndarray) -> dict[str, float]:
     model = _load_model()
     if model is None:
         raise RuntimeError("ML недоступен")
-    tensor = torch.from_numpy(window.astype(np.float32)).unsqueeze(0)
+    device = inference_device()
+    tensor = torch.from_numpy(window.astype(np.float32)).unsqueeze(0).to(device)
     with torch.no_grad():
         logits = model(tensor)
         probs = torch.softmax(logits, dim=1)[0]
     return {EXERCISES[i]: float(probs[i].item()) for i in range(len(EXERCISES))}
+
+
+def _predict_ml_probs_bounded(window: np.ndarray) -> dict[str, float] | None:
+    """На CPU — таймаут; на CUDA — прямой вызов (ингест не упирается в nginx 504)."""
+    if inference_device() == "cuda":
+        try:
+            return _predict_ml_probs(window)
+        except Exception:
+            logger.exception("Ошибка ML-inference на CUDA")
+            return None
+    future = _ml_executor.submit(_predict_ml_probs, window)
+    try:
+        return future.result(timeout=LIVE_ML_TIMEOUT_SEC)
+    except FuturesTimeoutError:
+        logger.warning("ML-inference timeout (%.1fs), эвристики", LIVE_ML_TIMEOUT_SEC)
+        future.cancel()
+        return None
 
 
 def _fuse_ml_and_heuristic(
@@ -194,12 +245,22 @@ def classify_exercise(
     classification_scores = heuristic_scores
     ml_probs: dict[str, float] | None = None
 
-    if window_arr is not None and _load_model() is not None:
+    if window_arr is not None and _load_model() is not None and not _live_ml_disabled():
+        now = time.monotonic()
+        cached = _ml_live_cache.get(zone_id)
+        use_cache = cached is not None and (now - cached[0]) < LIVE_ML_INTERVAL_SEC
         try:
-            ml_probs = _predict_ml_probs(window_arr)
-            raw_label, confidence, source, classification_scores = _fuse_ml_and_heuristic(
-                ml_probs, heuristic_scores, landmarks, window_list
-            )
+            if use_cache:
+                _, ml_probs, classification_scores, raw_label, confidence, source = cached
+            else:
+                ml_probs = _predict_ml_probs_bounded(window_arr)
+                if ml_probs is not None:
+                    raw_label, confidence, source, classification_scores = _fuse_ml_and_heuristic(
+                        ml_probs, heuristic_scores, landmarks, window_list
+                    )
+                    _ml_live_cache[zone_id] = (
+                        now, ml_probs, classification_scores, raw_label, confidence, source
+                    )
         except Exception:
             logger.exception("Ошибка ML-inference, fallback на эвристики")
 
@@ -220,3 +281,4 @@ def classify_exercise(
 
 def clear_classifier_state(zone_id: str) -> None:
     _prediction_buffers.pop(zone_id, None)
+    _ml_live_cache.pop(zone_id, None)

@@ -15,9 +15,29 @@
 
 ## Быстрый старт (Docker)
 
+### С NVIDIA GPU (рекомендуется для live ML в камере)
+
+Требуется [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_stack.ps1 -Gpu
+```
+
+или:
+
+```bash
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.gpu.yml up --build -d
+```
+
+Проверка: `http://localhost:8000/api/ml/status` → `cuda_available: true`, `inference_device: "cuda"`.
+
+### CPU (без GPU)
+
 Самый быстрый вариант одной командой:
 
 - `powershell -ExecutionPolicy Bypass -File scripts/start_stack.ps1`
+
+**Важно:** не запускайте `docker compose -f infra/docker-compose.yml up` после GPU-сборки — это поднимет **CPU**-backend и камера снова упрётся в таймаут 45 с. Для GPU всегда добавляйте `-f infra/docker-compose.gpu.yml` или `scripts/restart_backend_gpu.ps1`.
 - без пересборки контейнеров: `powershell -ExecutionPolicy Bypass -File scripts/start_stack.ps1 -NoBuild`
 - без запуска ML-конвейера: `powershell -ExecutionPolicy Bypass -File scripts/start_stack.ps1 -NoML`
 

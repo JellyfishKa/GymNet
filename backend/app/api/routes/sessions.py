@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.services.runtime_store import history_store, zone_store
+from app.services.runtime_store import history_as_list, zone_store
 from app.services.session_repo import get_recent_sessions
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -34,11 +34,11 @@ def get_session(zone_id: str) -> dict:
         return {
             "zone_id": zone_id,
             "status": "Free",
-            "history": history_store.get(zone_id, []),
+            "history": history_as_list(zone_id),
             "recent_sessions": sessions_payload,
         }
     return {
         "zone": zone.to_dict(),
-        "history": history_store.get(zone_id, []),
+        "history": history_as_list(zone_id),
         "recent_sessions": sessions_payload,
     }

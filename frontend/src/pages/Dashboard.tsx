@@ -41,6 +41,11 @@ export default function Dashboard() {
   const handleZoneUpdate = (response: PoseIngestResponse) => {
     setLastMessage(response);
     setCameraActive(true);
+    if (!response.is_present) {
+      void fetchRecentSessions(response.zone_id)
+        .then(setSessions)
+        .catch(() => {});
+    }
   };
 
   useEffect(() => {

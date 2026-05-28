@@ -53,6 +53,10 @@ const LANDMARK_NAMES = [
   "right_foot_index",
 ] as const;
 
+const INGEST_TIMEOUT_MS = 45_000;
+const INGEST_MIN_INTERVAL_MS = 400;
+const INGEST_BACKOFF_AFTER_ABORT_MS = 2_000;
+
 export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: CameraControlsProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -64,6 +68,7 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
   const processingRef = useRef(false);
   const lastSentRef = useRef(0);
   const sendInFlightRef = useRef(false);
+  const ingestBackoffUntilRef = useRef(0);
   const mountedRef = useRef(true);
   const overlayRedrawTimerRef = useRef<number | null>(null);
 
@@ -179,7 +184,11 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
 
   const onResults = async (results: Results) => {
     const now = Date.now();
-    if (now - lastSentRef.current < 200 || sendInFlightRef.current) {
+    if (now < ingestBackoffUntilRef.current || sendInFlightRef.current) {
+      scheduleNextFrame();
+      return;
+    }
+    if (now - lastSentRef.current < INGEST_MIN_INTERVAL_MS) {
       scheduleNextFrame();
       return;
     }
@@ -205,7 +214,7 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     };
 
     const controller = new AbortController();
-    const fetchTimeout = window.setTimeout(() => controller.abort(), 8000);
+    const fetchTimeout = window.setTimeout(() => controller.abort(), INGEST_TIMEOUT_MS);
     try {
       const response = await fetch(apiPath("/api/live/ingest"), {
         method: "POST",
@@ -214,6 +223,11 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
         signal: controller.signal,
       });
       if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        const short = detail.replace(/\s+/g, " ").slice(0, 160);
+        const msg = `Ingest HTTP ${response.status}${short ? `: ${short}` : ""}`;
+        pushDebug(msg);
+        if (mountedRef.current) setStatus(msg);
         scheduleNextFrame();
         return;
       }
@@ -238,8 +252,19 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
       } else {
         setStatus("Камера активна: зона свободна");
       }
-    } catch {
-      if (mountedRef.current) setStatus("Ошибка отправки данных камеры");
+    } catch (error) {
+      const details = extractErrorMessage(error);
+      const isAbort =
+        (error instanceof DOMException && error.name === "AbortError") ||
+        (error instanceof Error && error.name === "AbortError");
+      if (isAbort) {
+        ingestBackoffUntilRef.current = Date.now() + INGEST_BACKOFF_AFTER_ABORT_MS;
+      }
+      const msg = isAbort
+        ? `Таймаут ingest (${INGEST_TIMEOUT_MS / 1000} с): backend на CPU или без GPU — scripts/restart_backend_gpu.ps1 (не docker compose без gpu.yml)`
+        : `Ошибка ingest: ${details}`;
+      pushDebug(msg);
+      if (mountedRef.current) setStatus(msg);
     } finally {
       window.clearTimeout(fetchTimeout);
       sendInFlightRef.current = false;

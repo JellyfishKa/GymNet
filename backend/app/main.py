@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -12,12 +13,14 @@ from app.api.routes.predictions import router as predictions_router
 from app.api.routes.sessions import router as sessions_router
 from app.api.ws.live import router as live_ws_router
 from app.db.session import init_db
-
+from app.services.exercise_classifier import _load_model
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     init_db()
+    # Первый ingest не должен ждать загрузки torch-модели (таймаут камеры ~20 с).
+    await asyncio.to_thread(_load_model)
     yield
 
 
