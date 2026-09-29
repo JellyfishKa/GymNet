@@ -107,6 +107,10 @@ export default function Dashboard() {
         phase={lastMessage.sadla_phase ?? "Neutral"}
         classificationSource={lastMessage.classification_source}
         exerciseConfidence={lastMessage.detected_exercise_confidence}
+        detectedExercise={lastMessage.exercise}
+        isPresent={lastMessage.is_present}
+        inRoi={lastMessage.in_roi}
+        activityRejected={lastMessage.activity_rejected}
         classificationScores={lastMessage.classification_scores}
         bodyOrientation={lastMessage.body_orientation}
         poseDebug={lastMessage.pose_debug}
@@ -114,7 +118,37 @@ export default function Dashboard() {
         muscleGroups={lastMessage.muscle_groups}
         occupancyForecast={occupancyForecast}
       />
-      <CameraControls zoneId={zoneId} setZoneId={setZoneId} onZoneUpdate={handleZoneUpdate} />
+      <CameraControls
+        zoneId={zoneId}
+        setZoneId={setZoneId}
+        onZoneUpdate={handleZoneUpdate}
+        onCameraStop={() => {
+          setCameraActive(false);
+          setLastMessage({
+            zone_id: zoneId,
+            is_present: false,
+            in_roi: false,
+            activity_rejected: null,
+            exercise: "RunInPlace",
+            phase: "Neutral",
+            form_penalty: 0,
+            minutes_to_free: 15,
+            sadla_phase: "Neutral",
+            zone: {
+              zone_id: zoneId,
+              status: "Free",
+              dwell_seconds: 0,
+              current_exercise: null,
+              exercise_seconds: 0,
+              rep_count: 0,
+              total_exercise_seconds: 0,
+              total_rep_count: 0,
+              form_score: 100,
+            },
+            supported_exercises: ["PushUps", "Squats", "RunInPlace"],
+          });
+        }}
+      />
       <MlStatusCard status={mlStatus} />
       <RecentSessions sessions={sessions} />
     </main>

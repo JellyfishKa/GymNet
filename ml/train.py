@@ -62,7 +62,13 @@ def main() -> None:
     if len(bundle.x) == 0:
         raise ValueError("Train-датасет пустой")
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    forced = os.getenv("GYMNET_TRAIN_DEVICE", "").strip().lower()
+    if forced == "cpu":
+        device = "cpu"
+    elif forced == "cuda" and torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Выбранное устройство обучения: {device}")
     model = CnnResBiGRU(in_features=99, num_classes=len(CLASSES)).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -37,8 +38,7 @@ def _read_json(path: Path) -> dict:
         return {}
 
 
-@router.get("/status")
-def get_ml_status() -> dict:
+def _build_ml_status() -> dict:
     repo_root = Path(__file__).resolve().parents[3]
     status_path = Path(
         os.getenv(
@@ -81,3 +81,8 @@ def get_ml_status() -> dict:
         "synthetic_macro_f1": (eval_report.get("synthetic_metrics") or {}).get("macro_f1"),
         "real_macro_f1": (eval_report.get("real_metrics") or {}).get("macro_f1"),
     }
+
+
+@router.get("/status")
+async def get_ml_status() -> dict:
+    return await asyncio.to_thread(_build_ml_status)

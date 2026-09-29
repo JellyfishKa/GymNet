@@ -10,10 +10,10 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 
 from checkpoint_io import load_cnn_resbigru
-from dataset_io import load_dataset
+from dataset_io import CLASSES, load_dataset
 
 ROOT = Path(__file__).resolve().parent
 
@@ -27,13 +27,26 @@ def _predict(model, x: np.ndarray) -> np.ndarray:
     return pred.cpu().numpy().astype(np.int64)
 
 
-def _metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+def _metrics(y_true: np.ndarray, y_pred: np.ndarray, class_names: list[str]) -> dict:
     if len(y_true) == 0:
-        return {"samples": 0, "accuracy": None, "macro_f1": None}
+        return {"samples": 0, "accuracy": None, "macro_f1": None, "per_class": None, "confusion_matrix": None}
+    report = classification_report(y_true, y_pred, target_names=class_names, output_dict=True, zero_division=0)
+    cm = confusion_matrix(y_true, y_pred, labels=list(range(len(class_names)))).tolist()
+    per_class = {
+        name: {
+            "precision": round(report[name]["precision"], 4),
+            "recall": round(report[name]["recall"], 4),
+            "f1": round(report[name]["f1-score"], 4),
+            "support": int(report[name]["support"]),
+        }
+        for name in class_names
+    }
     return {
         "samples": int(len(y_true)),
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "macro_f1": float(f1_score(y_true, y_pred, average="macro")),
+        "per_class": per_class,
+        "confusion_matrix": cm,
     }
 
 
@@ -54,8 +67,8 @@ def main() -> None:
 
     synthetic_pred = _predict(model, synthetic.x)
     real_pred = _predict(model, real.x)
-    synthetic_metrics = _metrics(synthetic.y, synthetic_pred)
-    real_metrics = _metrics(real.y, real_pred)
+    synthetic_metrics = _metrics(synthetic.y, synthetic_pred, CLASSES)
+    real_metrics = _metrics(real.y, real_pred, CLASSES)
 
     evaluated_at = datetime.now(timezone.utc).isoformat()
     report = {

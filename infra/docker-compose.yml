@@ -29,6 +29,7 @@ services:
       GYMNET_SHARED_EVAL_PATH: /shared_ml/eval_report.json
       GYMNET_LIVE_ML_INTERVAL_SEC: "2.5"
       GYMNET_DISABLE_LIVE_ML: "false"
+      GYMNET_LIVE_TRAIN_MIN_CONFIDENCE: "0.35"
     depends_on:
       postgres:
         condition: service_healthy
@@ -157,6 +158,10 @@ services:
       GYMNET_AUTORETRAIN_COOLDOWN_SECONDS: 900
       GYMNET_AUTORETRAIN_POLL_SECONDS: 20
       GYMNET_AUTORETRAIN_MAX_F1_DROP: 0.02
+      GYMNET_AUTORETRAIN_MAX_FAIL_STREAK: "5"
+      GYMNET_LIVE_MERGE_MAX_SAMPLES: "80"
+      GYMNET_LIVE_MERGE_MAX_RATIO: "0.25"
+      GYMNET_LIVE_TRAIN_MIN_CONFIDENCE: "0.35"
     command: ["python", "auto_retrain.py"]
 
 volumes:

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter
@@ -8,8 +9,7 @@ from app.services.runtime_store import history_as_list
 router = APIRouter(prefix="/ml", tags=["occupancy"])
 
 
-@router.get("/occupancy-forecast")
-def get_occupancy_forecast(
+def _occupancy_forecast_payload(
     zone_id: str,
     hour: int | None = None,
     day_of_week: int | None = None,
@@ -36,3 +36,19 @@ def get_occupancy_forecast(
         "wait_minutes": wait_minutes,
         "busyness_level": "high" if pf > 0.7 else "medium" if pf > 0.4 else "low",
     }
+
+
+@router.get("/occupancy-forecast")
+async def get_occupancy_forecast(
+    zone_id: str,
+    hour: int | None = None,
+    day_of_week: int | None = None,
+    wait_minutes: float = 5.0,
+) -> dict:
+    return await asyncio.to_thread(
+        _occupancy_forecast_payload,
+        zone_id,
+        hour,
+        day_of_week,
+        wait_minutes,
+    )

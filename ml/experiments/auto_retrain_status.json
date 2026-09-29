@@ -1,16 +1,16 @@
 {
   "last_seen_sessions": 0,
-  "last_seen_train_samples": 214,
-  "last_retrain_at": "2026-05-28T10:11:32.770032+00:00",
+  "last_seen_train_samples": 340,
+  "last_retrain_at": "2026-05-28T12:27:36.989851+00:00",
   "runs": 0,
   "current_seen_sessions": 0,
-  "current_seen_train_samples": 234,
+  "current_seen_train_samples": 340,
   "pending_sessions": 0,
-  "pending_train_samples": 20,
-  "runs_success": 9,
-  "runs_failed": 70,
-  "last_result": "failed",
-  "last_details": "Откат: synthetic macro_f1 ухудшился (1.0000 -> 0.1667)",
-  "retry_not_before": 1779967606.2770867,
-  "last_error": "Откат: synthetic macro_f1 ухудшился (1.0000 -> 0.1667)"
+  "pending_train_samples": 0,
+  "runs_success": 10,
+  "runs_failed": 71,
+  "last_result": "success",
+  "last_details": "ok",
+  "retry_not_before": 0.0,
+  "fail_streak": 0
 }

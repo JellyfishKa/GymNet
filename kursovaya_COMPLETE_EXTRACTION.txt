@@ -1,0 +1,158 @@
+COMPLETE DOCX EXTRACTION REPORT
+kursovaya_GymNet pochti gotovo, dobavleny risunki i tablicy sravnenij.docx
+================================================================================
+
+DOCUMENT METADATA
+================================================================================
+File: kursovaya_GymNet docx
+Location: c:/Users/Sergej/Documents/GitHub/GymNet/stacked docs/
+Extraction Date: 2026-05-28
+Total Paragraphs: 406
+Total Tables: 8
+
+DOCUMENT TITLE
+================================================================================
+GymNet - AI System for Gym Occupancy Analysis in Real-Time
+
+INSTITUTION
+================================================================================
+University: National Research Mordovia State University (МГУ им. Н.П. Огарёва)
+Faculty: Faculty of Mathematics and Information Technologies
+Department: Department of Data Analysis and Artificial Intelligence
+Course: Deep Learning (Глубокое обучение)
+
+РЕФЕРАТ STATISTICS
+================================================================================
+Pages: 28
+Figures: 6
+Tables: 8
+Sources: 13
+Appendices: 1
+
+DOCUMENT STRUCTURE
+================================================================================
+РЕФЕРАТ [para 67]
+ВВЕДЕНИЕ [para 78]
+1 Technical Architecture GymNet [para 95]
+   1.1 System Requirements [para 97]
+   1.2 CNN-ResBiGRU Stack and Sensor Modality [para 107]
+   1.3 ROI Mechanisms and MediaPipe BlazePose [para 117]
+   1.4 Personal Data Protection Compliance [para 125]
+2 Data Analysis Algorithms [para 132]
+   2.1 Joint Angle Calculation [para 133]
+   2.2 SADLA State Machine and Repetition Counting [para 143]
+   2.3 BiGRU Architecture with Residual Connections [para 155]
+   2.4 Form Scoring System [para 170]
+3 Software Implementation and Evaluation [para 191]
+   3.1 Frame Processing Pipeline [para 193]
+   3.2 ROI Detection and Demo Scenario [para 202]
+   3.3 Dataset and Quality Metrics [para 212]
+   3.4 Data Normalization [para 247]
+   3.5 System Demonstration [para 255]
+ЗАКЛЮЧЕНИЕ [para 264]
+СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ [para 272]
+ПРИЛОЖЕНИЕ А [para 287]
+
+TABLES (8 total)
+================================================================================
+1. [111] Sensor Modality Comparison for Gym Monitoring
+2. [148] State Machine States for Squats Exercise
+3. [219] CNN-ResBiGRU Classification Metrics on Synthetic Dataset
+4. [223] GymNet Dataset Composition by Classes
+5. [230] Confusion Matrix for CNN-ResBiGRU (Synthetic Test, n=120)
+6. [234] Loss Function Dynamics Across Training Epochs
+7. [238] Architecture Ablation Comparison on Synthetic Test
+8. [242] GymNet Comparison with Related Exercise Classification Works
+
+FIGURES (6 total)
+================================================================================
+1. [122] GymNet Software Complex Architecture
+2. [198] Frame Processing Pipeline in GymNet
+3. [258] GymNet Interface: ROI Detection and Skeleton
+4. [260] Metrics Panel: Repetitions, Technique, Calories, Muscle Groups, Forecast
+5. [261] ML Dashboard Module of GymNet
+6. [263] Session History in Zone
+
+CODE LISTINGS IN APPENDIX A (5 total)
+================================================================================
+1. [290] ResidualBiGRUBlock and CnnResBiGRU Classes (PyTorch)
+   File: ml/models/cnn_resbigru.py
+
+2. [342] ROI Presence Detection
+   File: backend/app/services/pose_pipeline.py
+
+3. [360] POST /api/live/ingest Route (FastAPI)
+   File: backend/app/api/routes/live_ingest.py
+
+4. [374] Joint Angle Calculation
+   File: backend/app/services/exercise_profiles.py
+
+5. [390] M/M/1 Wait Probability Forecast
+   File: backend/app/services/occupancy_forecast.py
+
+BIBLIOGRAPHY (13 sources)
+================================================================================
+1. GOST standards document on educational document requirements
+2. Russian Federal Law on Personal Data Protection (152-FZ, 2006)
+3. GOST on AI Ethics and Safety (2022)
+4. GOST on Bibliographic Records (2018)
+5. Riccio, R. Real-Time Fitness Exercise Classification (2024, arXiv)
+6. MediaPipe Pose - Google Developers Documentation
+7. AI in Fitness and Wellness Market Report (Grand View Research, 2025-2034)
+8. Cho, K. et al. RNN Encoder-Decoder (2014, arXiv)
+9. He, K. et al. Deep Residual Learning (2016, CVPR)
+10. FastAPI Framework Documentation
+11. React Framework Documentation
+12. Ba, J. L. et al. Layer Normalization (2016, arXiv)
+13. Mekruksavanich & Jitpattanakul. Gym Exercise Recognition with EMG/IMU (2024)
+
+APPENDIX A SECTION
+================================================================================
+Heading: ПРИЛОЖЕНИЕ А (Appendix A)
+Style: Heading 1
+Location: Paragraph 287
+Content: 5 code listings showing key GymNet implementation examples
+
+TECHNICAL STACK SUMMARY
+================================================================================
+Backend:           FastAPI (Python)
+Frontend:          React (TypeScript/JavaScript)
+Database:          PostgreSQL
+Containerization:  Docker
+ML Framework:      PyTorch
+Pose Detection:    MediaPipe BlazePose
+RNN Type:          BiGRU (Bidirectional GRU)
+CNN Type:          Custom ResidualBiGRU (Hybrid CNN-RNN)
+Occupancy Model:   M/M/1 Queuing Theory
+
+EXTRACTION METRICS
+================================================================================
+Total Paragraphs Extracted: 406
+Non-Empty Paragraphs: 298
+Table Captions Found: 8
+Figure Captions Found: 6
+Section Headings Found: 21
+Code Listings Found: 5
+Bibliography Entries Found: 13
+Formatting Details Captured: Yes (style, alignment, indentation)
+
+KEY RESEARCH CONTRIBUTIONS
+================================================================================
+- Real-time exercise classification (push-ups, squats, running in place)
+- Repetition counting with SADLA finite state machine
+- Form/technique evaluation system
+- Occupancy forecasting using M/M/1 queuing model
+- Calorie burn estimation
+- Muscle group visualization
+- ROI-based presence detection using MediaPipe
+- Full-stack implementation (backend + frontend + ML)
+- Auto-retraining pipeline
+
+OUTPUT FILES GENERATED
+================================================================================
+1. kursovaya_extraction_summary.txt - Structured summary
+2. kursovaya_all_paragraphs.txt - Full paragraph list with formatting
+3. kursovaya_COMPLETE_EXTRACTION.txt - This comprehensive report
+
+EXTRACTION STATUS: COMPLETE
+================================================================================

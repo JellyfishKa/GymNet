@@ -73,12 +73,19 @@ def push_landmark_frame(zone_id: str, landmarks: list[LandmarkInput]) -> None:
         buffer.append(frame)
 
 
-def get_ready_window(zone_id: str) -> list[list[float]] | None:
+def get_window_frames(zone_id: str, min_frames: int = 1) -> list[list[float]] | None:
+    """Частичное окно для activity-gate до накопления 13 кадров под ML."""
+    if min_frames < 1:
+        min_frames = 1
     with zone_lock(zone_id):
         buffer = _buffers.get(zone_id)
-        if buffer is None or len(buffer) < WINDOW_SIZE:
+        if buffer is None or len(buffer) < min_frames:
             return None
         return [list(item) for item in buffer]
+
+
+def get_ready_window(zone_id: str) -> list[list[float]] | None:
+    return get_window_frames(zone_id, WINDOW_SIZE)
 
 
 def clear_landmark_buffer(zone_id: str) -> None:

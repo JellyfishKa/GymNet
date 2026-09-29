@@ -35,6 +35,7 @@ POLL_SECONDS = int(os.getenv("GYMNET_AUTORETRAIN_POLL_SECONDS", "20"))
 MAX_ALLOWED_DROP = float(os.getenv("GYMNET_AUTORETRAIN_MAX_F1_DROP", "0.02"))
 FAIL_BACKOFF_BASE_SECONDS = int(os.getenv("GYMNET_AUTORETRAIN_FAIL_BACKOFF_SECONDS", "300"))
 FAIL_BACKOFF_MAX_SECONDS = int(os.getenv("GYMNET_AUTORETRAIN_FAIL_BACKOFF_MAX_SECONDS", "3600"))
+MAX_FAIL_STREAK_BEFORE_SKIP = int(os.getenv("GYMNET_AUTORETRAIN_MAX_FAIL_STREAK", "5"))
 
 
 def _utc_now() -> str:
@@ -196,13 +197,25 @@ def main() -> None:
                     state["last_retrain_at"] = _utc_now()
                     state["last_seen_sessions"] = current_sessions
                     state["last_seen_train_samples"] = current_train
+                    state["fail_streak"] = 0
                     state.pop("last_error", None)
                     state["retry_not_before"] = 0.0
                 else:
                     failed = int(state.get("runs_failed", 0)) + 1
                     state["runs_failed"] = failed
+                    fail_streak = int(state.get("fail_streak", 0)) + 1
+                    state["fail_streak"] = fail_streak
+                    if fail_streak >= MAX_FAIL_STREAK_BEFORE_SKIP:
+                        # Не крутим один и тот же «ядовитый» батч бесконечно.
+                        state["last_seen_sessions"] = current_sessions
+                        state["last_seen_train_samples"] = current_train
+                        state["fail_streak"] = 0
+                        details = (
+                            f"{details} | пропуск батча после {MAX_FAIL_STREAK_BEFORE_SKIP} "
+                            f"неудач (watermark сдвинут)"
+                        )
                     backoff = min(
-                        FAIL_BACKOFF_BASE_SECONDS * failed,
+                        FAIL_BACKOFF_BASE_SECONDS * fail_streak,
                         FAIL_BACKOFF_MAX_SECONDS,
                     )
                     state["retry_not_before"] = time.time() + backoff

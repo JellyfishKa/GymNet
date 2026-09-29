@@ -217,6 +217,7 @@ def classify_exercise(
     *,
     window: np.ndarray | list[list[float]] | None,
     landmarks: dict[str, tuple[float, float]],
+    allow_live_ml: bool = True,
 ) -> tuple[
     str,
     str,
@@ -245,7 +246,12 @@ def classify_exercise(
     classification_scores = heuristic_scores
     ml_probs: dict[str, float] | None = None
 
-    if window_arr is not None and _load_model() is not None and not _live_ml_disabled():
+    if (
+        allow_live_ml
+        and window_arr is not None
+        and _load_model() is not None
+        and not _live_ml_disabled()
+    ):
         now = time.monotonic()
         cached = _ml_live_cache.get(zone_id)
         use_cache = cached is not None and (now - cached[0]) < LIVE_ML_INTERVAL_SEC

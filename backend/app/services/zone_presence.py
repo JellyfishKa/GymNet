@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 ENTER_FRAMES = 3
-EXIT_FRAMES = 5
+EXIT_FRAMES = 3
 
 _present_streak: dict[str, int] = defaultdict(int)
 _absent_streak: dict[str, int] = defaultdict(int)
@@ -13,7 +13,7 @@ _stable_present: dict[str, bool] = defaultdict(bool)
 
 
 def update_zone_presence(zone_id: str, raw_in_roi: bool) -> bool:
-    """Стабильное is_present: 3 кадра вход, 5 кадров выход."""
+    """Стабильное is_present: 3 кадра вход, 3 кадра выход."""
     if raw_in_roi:
         _present_streak[zone_id] += 1
         _absent_streak[zone_id] = 0

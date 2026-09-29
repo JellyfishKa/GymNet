@@ -20,6 +20,10 @@ type ZoneCardProps = {
   phase: string;
   classificationSource?: string | null;
   exerciseConfidence?: number | null;
+  detectedExercise?: string | null;
+  isPresent?: boolean;
+  inRoi?: boolean;
+  activityRejected?: string | null;
   classificationScores?: Record<string, number> | null;
   bodyOrientation?: string | null;
   poseDebug?: Record<string, number | null> | null;
@@ -35,21 +39,40 @@ const ORIENTATION_LABELS: Record<string, string> = {
 };
 
 export default function ZoneCard(props: ZoneCardProps) {
-  const isRepExercise = props.exercise != null && REP_EXERCISES.has(props.exercise);
+  const displayExercise = props.exercise ?? props.detectedExercise ?? null;
+  const isRepExercise = displayExercise != null && REP_EXERCISES.has(displayExercise);
   const confidenceText =
     props.exerciseConfidence != null ? `${(props.exerciseConfidence * 100).toFixed(0)}%` : "—";
   const sourceLabel =
     props.classificationSource === "ml"
       ? "ML"
-      : props.classificationSource === "heuristic"
+      : props.classificationSource === "heuristic" || props.classificationSource === "heuristic_override"
         ? "эвристики"
-        : "—";
+        : props.classificationSource ?? "—";
+  const presenceHint = (() => {
+    if (props.isPresent) return null;
+    if (props.inRoi && props.activityRejected === "warming_up") {
+      return "В ROI — накопление кадров (~2 с), затем засчитаем занятость";
+    }
+    if (props.inRoi && props.activityRejected === "idle") {
+      return "В ROI, но движение слабое — сделайте повторы отжиманий/приседаний";
+    }
+    if (props.inRoi && props.activityRejected === "passing") {
+      return "В ROI, но проход мимо — остановитесь в зоне";
+    }
+    if (props.inRoi) return "В ROI — ожидаем активность";
+    return "Человек вне рамки ROI — встаньте в зелёную зону на видео";
+  })();
 
   return (
     <section className="card">
       <h2>Зона: {props.zoneId}</h2>
       <p>Статус: {statusLabel(props.status)}</p>
-      <p>Упражнение: {exerciseLabel(props.exercise)}</p>
+      {presenceHint && <p className="banner-warn">{presenceHint}</p>}
+      <p>
+        Упражнение: {exerciseLabel(displayExercise)}
+        {!props.exercise && props.detectedExercise ? " (по кадру, зона ещё не занята)" : ""}
+      </p>
       <p>
         Распознавание: {sourceLabel}
         {props.classificationSource ? ` (уверенность ${confidenceText})` : ""}

@@ -15,3 +15,5 @@
 /backend/.omc
 /scratch
 scripts/generate_kursovaya_draft.py
+/ml/.omc
+kursovaya_extraction_summary.txt

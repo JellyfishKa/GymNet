@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
-import { apiPath } from "../config/runtime";
+import { apiPath, wsLiveIngestUrl } from "../config/runtime";
 import type { PoseIngestResponse } from "../services/ingestTypes";
+import { LiveIngestWsClient } from "../services/liveIngestWs";
 import { createPose, type MediaPipePose, type Results } from "../utils/mediapipePose";
 import {
   DEFAULT_ROI,
@@ -15,6 +16,7 @@ type CameraControlsProps = {
   zoneId: string;
   setZoneId: (value: string) => void;
   onZoneUpdate: (response: PoseIngestResponse) => void;
+  onCameraStop?: () => void;
 };
 
 const LANDMARK_NAMES = [
@@ -53,11 +55,21 @@ const LANDMARK_NAMES = [
   "right_foot_index",
 ] as const;
 
-const INGEST_TIMEOUT_MS = 45_000;
-const INGEST_MIN_INTERVAL_MS = 400;
-const INGEST_BACKOFF_AFTER_ABORT_MS = 2_000;
+const INGEST_MIN_INTERVAL_MS = 500;
+const INGEST_TIMEOUT_BACKOFF_MS = 3_000;
+const INGEST_HTTP_TIMEOUT_MS = 28_000;
+/** Фоновая вкладка: rAF почти не тикает — дёргаем processFrame по таймеру. */
+const HIDDEN_TAB_FRAME_MS = 500;
+const WATCHDOG_MS = 2_000;
 
-export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: CameraControlsProps) {
+const RECOVER_DEBOUNCE_MS = 5_000;
+
+export default function CameraControls({
+  zoneId,
+  setZoneId,
+  onZoneUpdate,
+  onCameraStop,
+}: CameraControlsProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayFrameRef = useRef<OverlayFrame>({ landmarks: [], roi: DEFAULT_ROI, ingest: null });
@@ -67,8 +79,15 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
   const rafRef = useRef<number | null>(null);
   const processingRef = useRef(false);
   const lastSentRef = useRef(0);
-  const sendInFlightRef = useRef(false);
   const ingestBackoffUntilRef = useRef(0);
+  const ingestWsRef = useRef<LiveIngestWsClient | null>(null);
+  const ingestSessionRef = useRef(0);
+  const zoneIdRef = useRef(zoneId);
+  const cameraStartedAtRef = useRef(0);
+  const lastFrameAtRef = useRef(0);
+  const cameraEnabledRef = useRef(false);
+  const selectedDeviceIdRef = useRef("");
+  const recoverInFlightRef = useRef(false);
   const mountedRef = useRef(true);
   const overlayRedrawTimerRef = useRef<number | null>(null);
 
@@ -101,7 +120,161 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     drawPoseOverlay(ctx, canvas.width, canvas.height, overlayFrameRef.current, overlayLayers);
   };
 
+  const bindStreamTracks = (stream: MediaStream) => {
+    for (const track of stream.getVideoTracks()) {
+      track.onended = () => {
+        if (!cameraEnabledRef.current) return;
+        pushDebug("Видеотрек ended — восстанавливаем поток");
+        void recoverCameraPipeline("track-ended");
+      };
+      track.onmute = () => {
+        if (!cameraEnabledRef.current) return;
+        pushDebug("Видеотрек mute — пробуем play()");
+        void videoRef.current?.play().catch(() => undefined);
+      };
+    }
+  };
+
+  const applyIngestResponse = (event: PoseIngestResponse) => {
+    overlayFrameRef.current = {
+      ...overlayFrameRef.current,
+      ingest: event,
+    };
+    redrawOverlay();
+    onZoneUpdate(event);
+    const label = event.zone?.current_exercise ?? event.exercise;
+    if (event.is_present) {
+      setStatus(`В зоне: ${label ?? "—"} (${event.classification_source ?? "—"})`);
+    } else if (event.in_roi && event.activity_rejected === "idle") {
+      setStatus("В кадре, но без упражнения (стоит) — не засчитываем");
+    } else if (event.in_roi && event.activity_rejected === "passing") {
+      setStatus("Проходит мимо — не засчитываем");
+    } else if (event.in_roi && event.activity_rejected === "warming_up") {
+      setStatus("В кадре — ожидаем движение упражнения");
+    } else if (event.in_roi) {
+      setStatus("В кадре — не засчитываем");
+    } else {
+      setStatus("Камера активна: зона свободна");
+    }
+  };
+
+  const submitIngestHttpFallback = (ingestPayload: {
+    zone_id: string;
+    roi: typeof DEFAULT_ROI;
+    landmarks: { name: string; x: number; y: number }[];
+  }) => {
+    const controller = new AbortController();
+    const fetchTimeout = window.setTimeout(() => controller.abort(), INGEST_HTTP_TIMEOUT_MS);
+    void fetch(apiPath("/api/live/ingest"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ingestPayload),
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const detail = await response.text().catch(() => "");
+          pushDebug(`Ingest HTTP ${response.status}: ${detail.slice(0, 80)}`);
+          return;
+        }
+        const event = (await response.json()) as PoseIngestResponse;
+        if (mountedRef.current) {
+          applyIngestResponse(event);
+        }
+      })
+      .catch((error: unknown) => {
+        const isAbort =
+          (error instanceof DOMException && error.name === "AbortError") ||
+          (error instanceof Error && error.name === "AbortError");
+        pushDebug(isAbort ? "Ingest HTTP таймаут (fallback)" : `Ingest HTTP: ${extractErrorMessage(error)}`);
+      })
+      .finally(() => window.clearTimeout(fetchTimeout));
+  };
+
+  const recoverCameraPipeline = async (reason: string) => {
+    if (!cameraEnabledRef.current || recoverInFlightRef.current) {
+      return;
+    }
+    if (Date.now() - cameraStartedAtRef.current < RECOVER_DEBOUNCE_MS) {
+      return;
+    }
+    recoverInFlightRef.current = true;
+    try {
+      pushDebug(`Восстановление (${reason})`);
+      ingestBackoffUntilRef.current = 0;
+      processingRef.current = false;
+
+      const video = videoRef.current;
+      const track = streamRef.current?.getVideoTracks()[0];
+      if (!video || !poseRef.current) {
+        return;
+      }
+
+      if (!track || track.readyState === "ended") {
+        await restartCameraStream();
+        return;
+      }
+
+      try {
+        await video.play();
+      } catch {
+        // ignore
+      }
+      if (video.readyState < 2) {
+        await waitVideoReady(video).catch(() => undefined);
+      }
+      setStatus("Камера: возобновление после паузы вкладки/потока");
+      scheduleNextFrame();
+    } finally {
+      recoverInFlightRef.current = false;
+    }
+  };
+
+  const restartCameraStream = async () => {
+    const video = videoRef.current;
+    if (!video || !cameraEnabledRef.current) {
+      return;
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        ...(selectedDeviceIdRef.current
+          ? { deviceId: { exact: selectedDeviceIdRef.current } }
+          : {}),
+      },
+      audio: false,
+    });
+    streamRef.current = stream;
+    bindStreamTracks(stream);
+    video.srcObject = stream;
+    await waitVideoReady(video);
+    await video.play().catch(() => undefined);
+    scheduleNextFrame();
+    pushDebug("Поток камеры переподключён");
+  };
+
+  const resetCameraSessionRefs = () => {
+    ingestSessionRef.current += 1;
+    lastSentRef.current = 0;
+    ingestBackoffUntilRef.current = 0;
+    lastFrameAtRef.current = 0;
+  };
+
+  const resetBackendTracking = async (id: string) => {
+    await fetch(apiPath(`/api/live/reset-tracking?zone_id=${encodeURIComponent(id)}`), {
+      method: "POST",
+    }).catch(() => undefined);
+  };
+
   const stopCamera = (resetStatus = true) => {
+    void resetBackendTracking(zoneIdRef.current);
+    onCameraStop?.();
+    ingestWsRef.current?.close();
+    ingestWsRef.current = null;
+    resetCameraSessionRefs();
+    cameraEnabledRef.current = false;
     setEnabled(false);
     if (resetStatus) {
       setStatus("Камера выключена");
@@ -182,19 +355,8 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     });
   };
 
-  const onResults = async (results: Results) => {
-    const now = Date.now();
-    if (now < ingestBackoffUntilRef.current || sendInFlightRef.current) {
-      scheduleNextFrame();
-      return;
-    }
-    if (now - lastSentRef.current < INGEST_MIN_INTERVAL_MS) {
-      scheduleNextFrame();
-      return;
-    }
-    lastSentRef.current = now;
-    sendInFlightRef.current = true;
-
+  const onResults = (results: Results) => {
+    lastFrameAtRef.current = Date.now();
     const landmarks = results.poseLandmarks ?? [];
     overlayFrameRef.current = {
       landmarks: landmarks.map((lm) => ({ x: lm.x, y: lm.y, visibility: lm.visibility })),
@@ -203,8 +365,19 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     };
     redrawOverlay();
 
+    const now = Date.now();
+    if (now < ingestBackoffUntilRef.current) {
+      scheduleNextFrame();
+      return;
+    }
+    if (now - lastSentRef.current < INGEST_MIN_INTERVAL_MS) {
+      scheduleNextFrame();
+      return;
+    }
+    lastSentRef.current = now;
+
     const ingestPayload = {
-      zone_id: zoneId,
+      zone_id: zoneIdRef.current,
       roi: DEFAULT_ROI,
       landmarks: landmarks.map((lm, idx) => ({
         name: LANDMARK_NAMES[idx] ?? `point_${idx}`,
@@ -213,63 +386,11 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
       })),
     };
 
-    const controller = new AbortController();
-    const fetchTimeout = window.setTimeout(() => controller.abort(), INGEST_TIMEOUT_MS);
-    try {
-      const response = await fetch(apiPath("/api/live/ingest"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(ingestPayload),
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        const detail = await response.text().catch(() => "");
-        const short = detail.replace(/\s+/g, " ").slice(0, 160);
-        const msg = `Ingest HTTP ${response.status}${short ? `: ${short}` : ""}`;
-        pushDebug(msg);
-        if (mountedRef.current) setStatus(msg);
-        scheduleNextFrame();
-        return;
-      }
-      const event = (await response.json()) as PoseIngestResponse;
-      overlayFrameRef.current = {
-        ...overlayFrameRef.current,
-        ingest: event,
-      };
-      redrawOverlay();
-      onZoneUpdate(event);
-      const label = event.zone?.current_exercise ?? event.exercise;
-      if (event.is_present) {
-        setStatus(`В зоне: ${label ?? "—"} (${event.classification_source ?? "—"})`);
-      } else if (event.in_roi && event.activity_rejected === "idle") {
-        setStatus("В кадре, но без упражнения (стоит) — не засчитываем");
-      } else if (event.in_roi && event.activity_rejected === "passing") {
-        setStatus("Проходит мимо — не засчитываем");
-      } else if (event.in_roi && event.activity_rejected === "warming_up") {
-        setStatus("В кадре — ожидаем движение упражнения");
-      } else if (event.in_roi) {
-        setStatus("В кадре — не засчитываем");
-      } else {
-        setStatus("Камера активна: зона свободна");
-      }
-    } catch (error) {
-      const details = extractErrorMessage(error);
-      const isAbort =
-        (error instanceof DOMException && error.name === "AbortError") ||
-        (error instanceof Error && error.name === "AbortError");
-      if (isAbort) {
-        ingestBackoffUntilRef.current = Date.now() + INGEST_BACKOFF_AFTER_ABORT_MS;
-      }
-      const msg = isAbort
-        ? `Таймаут ingest (${INGEST_TIMEOUT_MS / 1000} с): backend на CPU или без GPU — scripts/restart_backend_gpu.ps1 (не docker compose без gpu.yml)`
-        : `Ошибка ingest: ${details}`;
-      pushDebug(msg);
-      if (mountedRef.current) setStatus(msg);
-    } finally {
-      window.clearTimeout(fetchTimeout);
-      sendInFlightRef.current = false;
-      scheduleNextFrame();
+    const ws = ingestWsRef.current;
+    if (ws) {
+      ws.submit(ingestPayload);
     }
+    scheduleNextFrame();
   };
 
   const scheduleNextFrame = () => {
@@ -284,7 +405,8 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     if (!videoRef.current || !poseRef.current) {
       return;
     }
-    if (processingRef.current || sendInFlightRef.current) {
+    lastFrameAtRef.current = Date.now();
+    if (processingRef.current) {
       scheduleNextFrame();
       return;
     }
@@ -295,9 +417,8 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
     } catch (error) {
       const details = extractErrorMessage(error);
       pushDebug(`Ошибка в pose.send(): ${details}`);
-      setStatus(`Ошибка обработки кадра: ${details}`);
-      stopCamera(false);
-      return;
+      setStatus(`Ошибка кадра — пробуем восстановить…`);
+      void recoverCameraPipeline("pose-send");
     } finally {
       processingRef.current = false;
     }
@@ -320,6 +441,7 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
       });
       pushDebug(`getUserMedia OK, треков: ${stream.getTracks().length}`);
       streamRef.current = stream;
+      bindStreamTracks(stream);
       if (!videoRef.current) {
         throw new Error("Видеоэлемент не найден");
       }
@@ -342,21 +464,58 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5,
       });
-      pose.onResults((results) => {
-        void onResults(results);
-      });
+      pose.onResults(onResults);
       poseRef.current = pose;
 
+      resetCameraSessionRefs();
+      await resetBackendTracking(zoneId);
+
+      const session = ingestSessionRef.current;
+      ingestWsRef.current?.close();
+      ingestWsRef.current = new LiveIngestWsClient(wsLiveIngestUrl(), {
+        onOpen: () => {
+          pushDebug("ingest WebSocket подключён");
+          scheduleNextFrame();
+        },
+        onError: (msg) => {
+          if (msg === "busy") {
+            return;
+          }
+          pushDebug(`ingest WS: ${msg}`);
+          if (msg === "timeout") {
+            ingestBackoffUntilRef.current = Date.now() + INGEST_TIMEOUT_BACKOFF_MS;
+          }
+          if (mountedRef.current) {
+            setStatus(
+              msg === "timeout"
+                ? "Ingest timeout — снижаю частоту кадров…"
+                : `ingest WS: ${msg}`,
+            );
+          }
+        },
+        onResponse: (event) => {
+          if (session !== ingestSessionRef.current || !mountedRef.current) {
+            return;
+          }
+          pushDebug(
+            `ingest OK: present=${event.is_present} roi=${event.in_roi} rej=${event.activity_rejected ?? "—"}`,
+          );
+          applyIngestResponse(event);
+        },
+      });
+
+      cameraEnabledRef.current = true;
+      cameraStartedAtRef.current = Date.now();
       setEnabled(true);
-      setStatus("Камера включена — настройте кадр так, чтобы человек был в рамке ROI");
-      pushDebug("Камера активна, запускаю цикл кадров");
+      lastFrameAtRef.current = Date.now();
+      setStatus("Камера включена — встаньте в зелёную ROI");
+      pushDebug("Камера активна, жду WebSocket ingest");
       await loadVideoDevices();
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = new ResizeObserver(() => redrawOverlay());
       if (videoRef.current) {
         resizeObserverRef.current.observe(videoRef.current);
       }
-      scheduleNextFrame();
     } catch (error) {
       const message = extractErrorMessage(error);
       // eslint-disable-next-line no-console
@@ -368,8 +527,57 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
   };
 
   useEffect(() => {
+    selectedDeviceIdRef.current = selectedDeviceId;
+    zoneIdRef.current = zoneId;
+  }, [selectedDeviceId, zoneId]);
+
+  useEffect(() => {
     redrawOverlay();
   }, [overlayLayers]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void recoverCameraPipeline("visibility");
+      }
+    };
+    const onFocus = () => {
+      void recoverCameraPipeline("focus");
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onFocus);
+
+    const hiddenTick = window.setInterval(() => {
+      if (!cameraEnabledRef.current || !document.hidden) {
+        return;
+      }
+      void processFrame();
+    }, HIDDEN_TAB_FRAME_MS);
+
+    const watchdog = window.setInterval(() => {
+      if (!cameraEnabledRef.current) {
+        return;
+      }
+      const stalled = Date.now() - lastFrameAtRef.current > WATCHDOG_MS * 3;
+      if (stalled) {
+        void recoverCameraPipeline("watchdog-stall");
+      }
+    }, WATCHDOG_MS);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onFocus);
+      window.clearInterval(hiddenTick);
+      window.clearInterval(watchdog);
+    };
+  }, [enabled]);
 
   useEffect(() => {
     const initDevices = async () => {
@@ -401,7 +609,7 @@ export default function CameraControls({ zoneId, setZoneId, onZoneUpdate }: Came
   return (
     <section className="card">
       <h2>Камера</h2>
-      <p className="hint">Данные зоны обновляются только через ingest (без ручного WebSocket).</p>
+      <p className="hint">Зона обновляется по WebSocket ingest (кадры не блокируют MediaPipe).</p>
       <label>
         Идентификатор зоны камеры
         <input value={zoneId} onChange={(event) => setZoneId(event.target.value)} />

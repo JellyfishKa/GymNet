@@ -23,3 +23,13 @@ export function wsLiveUrl(): string {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   return `${protocol}://${window.location.host}/ws/live`;
 }
+
+export function wsLiveIngestUrl(): string {
+  const fromEnv = import.meta.env.VITE_WS_LIVE_INGEST_URL as string | undefined;
+  if (fromEnv) {
+    return fromEnv;
+  }
+
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${window.location.host}/ws/live/ingest`;
+}

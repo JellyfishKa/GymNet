@@ -29,7 +29,12 @@ export default function MlStatusCard({ status }: MlStatusCardProps) {
       <p>Неудачных retrain: {runsFailed}</p>
       <p>Последний результат: {lastResult}</p>
       {lastResult === "failed" && status.autotrain_last_error ? (
-        <p className="hint">Ошибка retrain: {status.autotrain_last_error}</p>
+        <p className="hint">
+          Ошибка retrain: {status.autotrain_last_error}
+          <br />
+          Защита откатила веса: новая модель хуже на synthetic-тесте. Live-классификация в
+          камере не пострадала, если «Модель доступна: да».
+        </p>
       ) : null}
       <p>Модель доступна: {status.model_exists ? "да" : "нет"}</p>
       <p>

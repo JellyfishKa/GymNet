@@ -46,6 +46,14 @@ class _PendingSession:
 _pending_finalize: dict[str, _PendingSession] = {}
 
 
+def reset_zone_runtime_state(zone_id: str) -> None:
+    """Полный сброс in-memory зоны при выключении/перезапуске камеры."""
+    _absent_streak.pop(zone_id, None)
+    _pending_finalize.pop(zone_id, None)
+    sadla_store.pop(zone_id, None)
+    zone_store[zone_id] = ZoneState(zone_id=zone_id)
+
+
 def _history_list(zone_id: str) -> list[int]:
     bucket = history_store.get(zone_id)
     if bucket is None:

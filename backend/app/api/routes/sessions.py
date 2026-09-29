@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
@@ -8,8 +10,7 @@ from app.services.session_repo import get_recent_sessions
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
-@router.get("/{zone_id}")
-def get_session(zone_id: str) -> dict:
+def _get_session_payload(zone_id: str) -> dict:
     zone = zone_store.get(zone_id)
     db: Session = SessionLocal()
     try:
@@ -42,3 +43,8 @@ def get_session(zone_id: str) -> dict:
         "history": history_as_list(zone_id),
         "recent_sessions": sessions_payload,
     }
+
+
+@router.get("/{zone_id}")
+async def get_session(zone_id: str) -> dict:
+    return await asyncio.to_thread(_get_session_payload, zone_id)

@@ -19,6 +19,7 @@ LIVE_TRAIN_PATH = Path(
     )
 )
 SAMPLE_THROTTLE_SECONDS = float(os.getenv("GYMNET_LIVE_TRAIN_THROTTLE_SECONDS", "3.0"))
+MIN_TRAIN_CONFIDENCE = float(os.getenv("GYMNET_LIVE_TRAIN_MIN_CONFIDENCE", "0.35"))
 
 _lock = Lock()
 _last_train_sample_at: dict[str, float] = {}
@@ -54,9 +55,12 @@ def append_live_training_window(
     exercise: str,
     window: list[list[float]],
     force: bool = False,
+    confidence: float | None = None,
 ) -> bool:
     """Сохраняет окно [13, 99] для дообучения CNN-ResBiGRU."""
     if len(window) != 13 or any(len(frame) != 99 for frame in window):
+        return False
+    if confidence is not None and confidence < MIN_TRAIN_CONFIDENCE:
         return False
 
     now = time.time()
